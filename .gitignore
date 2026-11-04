@@ -7,3 +7,5 @@ save.dat
 highscores.txt
 __pycache__/
 node_modules/
+tools/smoke/node_modules
+tools/smoke/out

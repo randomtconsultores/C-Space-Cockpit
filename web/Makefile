@@ -11,7 +11,7 @@ SOUND_MANIFEST := $(OUT)/sounds/manifest.json
 MENU_MUSIC := $(OUT)/sounds/menu.wav
 EXPORTS := _cs_init _cs_input _cs_tick _cs_event_take _cs_stat _cs_scene_update _cs_seg_ptr _cs_seg_count _cs_pt_ptr _cs_pt_count _cs_con_ptr _cs_con_count _cs_const
 JS := input.js events.js hud.js render_gl.js cockpit.js index.html
-.PHONY: all check-toolchain test test-c test-js test-sound-assets serve clean
+.PHONY: all check-toolchain test test-c test-js test-sound-assets serve test-browser clean
 all: check-toolchain $(OUT)/cockpit_wasm.js $(addprefix $(OUT)/,$(JS)) $(SOUND_MANIFEST) $(SOUND_FILES) $(MENU_MUSIC)
 check-toolchain:
 	@command -v $(EMCC) >/dev/null 2>&1 || { echo "emcc not found; activate Emscripten first."; exit 1; }
@@ -35,5 +35,7 @@ test-sound-assets:
 	$(PYTHON) -B web/test_sound_assets.py
 serve: all
 	$(PYTHON) -m http.server 8000 --bind 0.0.0.0 --directory $(OUT)
+test-browser: all
+	$(NODE) tools/smoke/smoke.js
 clean:
 	rm -rf $(OUT)

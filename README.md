@@ -13,6 +13,13 @@ Current state: flight prototype (M1). One route, autopilot, asteroid belt, laser
 ## Tests
 
     make -f web/Makefile test               # C (ASan/UBSan), JS contract, sound assets
+    make -f web/Makefile test-browser        # headless Chromium smoke test (Playwright)
+
+## Browser smoke test
+
+See tools/smoke/README.md. It loads web/build in headless Chromium, plays the
+first steps of a flight and fails if anything is broken. Not a substitute for
+the Director's acceptance.
 
 ## Controls
 
