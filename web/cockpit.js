@@ -7,10 +7,18 @@
   var glCanvas = document.getElementById("gl"), hudCanvas = document.getElementById("hud");
   var stage = document.getElementById("stage"), menu = document.getElementById("menu");
   var endNode = document.getElementById("end");
+  var pauseNode = document.getElementById("pause");
+  var pitchNode = document.getElementById("pitch-text");
+  var debugNode = document.getElementById("debug");
   var hudCtx = hudCanvas.getContext("2d");
   var core = null, renderer = null, running = false, accum = 0, last = 0, ended = false;
+  var paused = false, autoPaused = false;
   var shipType = 1, seed = 12345, soundOn = true, sounds = {}, dpr = 1;
   var C = { seg: 0, pt: 1, con: 2 };
+  var debugOn = false;
+  var fpsSamples = []; var fpsSum = 0;
+  var lastSteps = 0, lastDebug = 0;
+  var STAT = CockpitHud.STAT;
 
   function setStatus(t) { statusNode.textContent = t; }
 
@@ -36,59 +44,120 @@
   function floats(ptr, count, stride) {
     return new Float32Array(core.HEAPF32.buffer, ptr, count * stride);
   }
+  function updatePitchText() {
+    if (!pitchNode) return;
+    pitchNode.textContent = CockpitSettings.isInverted() ? "PITCH INVERTIDO" : "PITCH NORMAL";
+  }
+  function updateDebug(now, steps) {
+    if (!debugOn || !debugNode) return;
+    lastSteps = steps;
+    var dt = now - lastDebug; var first = lastDebug === 0; lastDebug = now;
+    if (first || dt <= 0) return;
+    fpsSamples.push(dt); fpsSum += dt;
+    if (fpsSamples.length > 60) { fpsSum -= fpsSamples.shift(); }
+    var fps = fpsSamples.length > 0 ? 1000.0 / (fpsSum / fpsSamples.length) : 0;
+    var modeVal = core ? (core._cs_stat(STAT.MODE) || 0) : 0;
+    var lines = [
+      "FPS: " + fps.toFixed(0),
+      "ticks/frame: " + lastSteps,
+      "SPEED: " + (core ? core._cs_stat(STAT.SPEED) : 0).toFixed(1),
+      "PROGRESS: " + (core ? core._cs_stat(STAT.PROGRESS) : 0).toFixed(0) + "%",
+      "MODE: " + (["AUTOPILOT", "MANUAL", "ARRIVED", "DESTROYED", "STRANDED"][modeVal] || ""),
+      "ALERT: " + (core ? core._cs_stat(STAT.ALERT) : 0).toFixed(0),
+      "HULL: " + (core ? core._cs_stat(STAT.HULL) : 0).toFixed(0) + "/" + (core ? core._cs_stat(STAT.HULL_MAX) : 0).toFixed(0),
+      "FUEL: " + (core ? core._cs_stat(STAT.FUEL) : 0).toFixed(0) + "/" + (core ? core._cs_stat(STAT.FUEL_MAX) : 0).toFixed(0),
+      "ENERGY: " + (core ? core._cs_stat(STAT.ENERGY) : 0).toFixed(0) + "/" + (core ? core._cs_stat(STAT.ENERGY_MAX) : 0).toFixed(0)
+    ];
+    debugNode.textContent = lines.join("\n");
+  }
   function frame(now) {
     if (!running) return;
-    var dt = Math.min(now - last, 100); last = now; accum += dt;
-    var steps = 0;
-    while (accum >= STEP_MS && steps < MAX_STEPS) { core._cs_tick(); accum -= STEP_MS; steps++; }
-    if (steps === MAX_STEPS) accum = 0;
-    handleEvents();
-    core._cs_scene_update();
-    var sc = core._cs_const(0), pc = core._cs_const(1), cc = core._cs_const(2);
-    var segN = core._cs_seg_count(), ptN = core._cs_pt_count(), conN = core._cs_con_count();
-    renderer.draw(floats(core._cs_seg_ptr(), segN, sc), segN, floats(core._cs_pt_ptr(), ptN, pc), ptN);
-    var r = stage.getBoundingClientRect();
-    CockpitHud.draw(hudCtx, r.width, r.height, function (id) { return core._cs_stat(id); },
-      floats(core._cs_con_ptr(), conN, cc), conN, Math.floor(now / 350) % 2 === 0);
-    var mode = core._cs_stat(CockpitHud.STAT.MODE);
-    if (mode >= 2 && !ended) {
-      ended = true;
-      endNode.hidden = false;
-      endNode.querySelector("h2").textContent = CockpitHud.endText(mode);
-      endNode.querySelector("p").textContent = "Casco " + Math.round(core._cs_stat(CockpitHud.STAT.HULL)) +
-        " | combustível " + Math.round(core._cs_stat(CockpitHud.STAT.FUEL)) +
-        " | tempo na Terra " + core._cs_stat(CockpitHud.STAT.EARTH_DAYS).toFixed(1) + " dias";
+    if (!paused) {
+      var dt = Math.min(now - last, 100); last = now; accum += dt;
+      var steps = 0;
+      while (accum >= STEP_MS && steps < MAX_STEPS) { core._cs_tick(); accum -= STEP_MS; steps++; }
+      if (steps === MAX_STEPS) accum = 0;
+      updateDebug(now, steps);
+      handleEvents();
+      core._cs_scene_update();
+      var sc = core._cs_const(0), pc = core._cs_const(1), cc = core._cs_const(2);
+      var segN = core._cs_seg_count(), ptN = core._cs_pt_count(), conN = core._cs_con_count();
+      renderer.draw(floats(core._cs_seg_ptr(), segN, sc), segN, floats(core._cs_pt_ptr(), ptN, pc), ptN);
+      var r = stage.getBoundingClientRect();
+      CockpitHud.draw(hudCtx, r.width, r.height, function (id) { return core._cs_stat(id); },
+        floats(core._cs_con_ptr(), conN, cc), conN, Math.floor(now / 350) % 2 === 0);
+      var mode = core._cs_stat(CockpitHud.STAT.MODE);
+      if (mode >= 2 && !ended) {
+        ended = true;
+        endNode.hidden = false;
+        endNode.querySelector("h2").textContent = CockpitHud.endText(mode);
+        endNode.querySelector("p").textContent = "Casco " + Math.round(core._cs_stat(CockpitHud.STAT.HULL)) +
+          " | combustível " + Math.round(core._cs_stat(CockpitHud.STAT.FUEL)) +
+          " | tempo na Terra " + core._cs_stat(CockpitHud.STAT.EARTH_DAYS).toFixed(1) + " dias";
+      }
+    } else {
+      updateDebug(now, 0);
     }
+    if (typeof CockpitGamepad !== "undefined") CockpitGamepad.update(pressInput, togglePause);
     requestAnimationFrame(frame);
   }
   function start() {
     if (core._cs_init(shipType, seed) !== 0) { setStatus("Tipo de nave inválido."); return; }
-    menu.hidden = true; endNode.hidden = true; ended = false; accum = 0; resize();
+    menu.hidden = true; endNode.hidden = true; ended = false; paused = false; autoPaused = false;
+    if (pauseNode) pauseNode.hidden = true;
+    accum = 0; resize();
     if (!running) { running = true; last = performance.now(); requestAnimationFrame(frame); }
     setStatus("");
   }
-  function press(action, down) { if (core && action >= 0) core._cs_input(action, down ? 1 : 0); }
+  function press(action, down) { if (core && action >= 0 && !paused) core._cs_input(action, down ? 1 : 0); }
+  function pressInput(action, down) { press(CockpitSettings.mapAction(action), down); }
+  function releaseAll() { if (core) for (var a = 0; a < 8; a++) core._cs_input(a, 0); }
+  function togglePause() {
+    if (!running || menu.hidden === false || ended) return;
+    paused = !paused; autoPaused = false;
+    if (pauseNode) pauseNode.hidden = !paused;
+    if (paused) releaseAll();
+    else { last = performance.now(); accum = 0; fpsSamples = []; fpsSum = 0; lastDebug = 0; }
+  }
+  function autoPause(pause) {
+    if (!running || menu.hidden === false || ended) return;
+    if (pause && !paused) { paused = true; autoPaused = true; releaseAll(); if (pauseNode) pauseNode.hidden = false; }
+    else if (!pause && autoPaused) { paused = false; autoPaused = false; if (pauseNode) pauseNode.hidden = true; last = performance.now(); accum = 0; fpsSamples = []; fpsSum = 0; lastDebug = 0; }
+  }
 
   window.addEventListener("keydown", function (e) {
     if (!core) return;
     if (e.code === "Enter" && (menu.hidden === false || ended)) { start(); e.preventDefault(); return; }
+    if (e.code === "Escape" && menu.hidden === true && !ended) { togglePause(); e.preventDefault(); return; }
+    if (e.code === "KeyI" && menu.hidden === true && !ended) {
+      releaseAll(); CockpitSettings.setInverted(!CockpitSettings.isInverted()); updatePitchText(); e.preventDefault(); return;
+    }
+    if (e.code === "F3" && menu.hidden === true && !ended) {
+      debugOn = !debugOn; if (debugNode) debugNode.hidden = !debugOn; e.preventDefault(); return;
+    }
+    if (paused) return;
     var a = CockpitInput.actionForCode(e.code);
-    if (a >= 0) { if (!e.repeat) press(a, true); e.preventDefault(); }
+    if (a >= 0) { if (!e.repeat) pressInput(a, true); e.preventDefault(); }
   });
   window.addEventListener("keyup", function (e) {
+    if (!core) return;
     var a = CockpitInput.actionForCode(e.code);
-    if (a >= 0) { press(a, false); e.preventDefault(); }
+    if (a >= 0) { pressInput(a, false); e.preventDefault(); }
   });
-  window.addEventListener("blur", function () { for (var a = 0; a < 8; a++) press(a, false); });
+  window.addEventListener("blur", function () { autoPause(true); releaseAll(); });
+  window.addEventListener("focus", function () { autoPause(false); });
   window.addEventListener("resize", resize);
+  document.addEventListener("visibilitychange", function () {
+    if (document.hidden) autoPause(true); else autoPause(false);
+  });
 
   Array.prototype.forEach.call(document.querySelectorAll("[data-ship]"), function (b) {
     b.addEventListener("click", function () { shipType = Number(b.dataset.ship); start(); });
   });
   Array.prototype.forEach.call(document.querySelectorAll("[data-action]"), function (b) {
     var a = Number(b.dataset.action);
-    b.addEventListener("pointerdown", function (e) { e.preventDefault(); press(a, true); });
-    ["pointerup", "pointercancel", "pointerleave"].forEach(function (n) { b.addEventListener(n, function () { press(a, false); }); });
+    b.addEventListener("pointerdown", function (e) { e.preventDefault(); pressInput(a, true); });
+    ["pointerup", "pointercancel", "pointerleave"].forEach(function (n) { b.addEventListener(n, function () { pressInput(a, false); }); });
   });
   document.getElementById("restart").addEventListener("click", start);
   document.getElementById("sound").addEventListener("click", function (e) {
@@ -97,6 +166,8 @@
 
   try { renderer = new CockpitRenderer(glCanvas, 70); } catch (err) { setStatus("WebGL indisponível: " + err.message); return; }
   if (typeof createCockpit !== "function") { setStatus("cockpit.js não encontrado: execute make -f web/Makefile all."); return; }
+  try { CockpitSettings.useStorage(window.localStorage); } catch (err) { /* storage blocked: defaults only */ }
+  updatePitchText();
   createCockpit().then(function (m) {
     core = m; window.__cockpit = m; resize(); setStatus(""); menu.hidden = false;
   }).catch(function (e) { setStatus("Falha ao carregar WebAssembly: " + e); });

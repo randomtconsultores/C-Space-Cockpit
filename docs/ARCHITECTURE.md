@@ -42,6 +42,22 @@ Route.days is pilot time, Route.dilation converts it to Earth time (1.0 today). 
 | Ranking, SAVE/LOAD bridge (persist_bridge, persistence.js) | Not ported. They depend on the old ASCII UI. Will be rebuilt on the checkpoint v1 DTO of this game. |
 | ASCII framebuffer, levels, bosses, intro | Dropped. |
 
+## Browser-side input modules
+
+- `web/settings.js`: user preferences persisted in `localStorage` (key
+  `cockpit.invertPitch`). Exposes a pure `mapAction(action)` that swaps
+  `PITCH_UP`/`PITCH_DOWN` when pitch inversion is on; tolerant of missing or
+  throwing `localStorage`.
+- `web/gamepad.js`: Gamepad API polling with standard mapping (left stick yaw /
+  pitch with 0.2 deadzone and 0.5 press threshold, A=FIRE, Y=AUTOPILOT,
+  LT/RT=THROTTLE_DOWN/UP, Start=pause). Edge-triggered: only calls `press()`
+  when an action's state changes, and releases held actions when a gamepad
+  disconnects.
+- `web/cockpit.js`: pause (Esc, automatic on blur/visibilitychange), pitch
+  inversion toggle (I), F3 debug overlay, and the gamepad/keyboard/touch input
+  wiring. All actions pass through `settings.mapAction` before reaching the C
+  core.
+
 ## Not verified
 
 WASM was built with Emscripten 6.0.13 and loaded in headless Chromium (SwiftShader). Real GPU, audio playback, vibration, touch and gamepad are not verified. Balance values in core/ship.c are placeholders.
