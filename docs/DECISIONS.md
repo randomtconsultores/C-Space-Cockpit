@@ -14,6 +14,14 @@ Source: design report and Director answers of 2026-11-04. "Open" means not decid
 | Anti-cheat and accounts | Out of scope today. |
 | Repository | New repository (this one). C-Space-2Web stays as the closed migration. |
 | Game | Rewritten. Space Impact gameplay is dropped. Reused: sounds, ship ideas, controls, ranking, save and load, the server. |
+| Rotation model | Damped inertia, with tunable values (M2). |
+| Pitch | Normal by default; key I inverts; the choice is saved. |
+| Fuel | A full tank always allows one intergalactic jump and leaves a reserve. Trip cost = fixed cost + k * distance; constants live in a config file and are tuned by simulation. |
+| Map | 7 systems in the first version (M3). |
+| Life-Safe | Used only when the pilot dies AND the ship is destroyed. The pilot is restored from the last valid copy, without a ship. |
+| Debt | Paid in credits and/or missions given by natives. Mission types depend on the planet culture: combat (battle royale inside and outside the planet, pirates), races on the planet, dangerous cargo transport (pirates, debris, asteroids). Initial amount and balance are provisional. |
+| Replacement ship | The pilot immediately gets a loaned ship. Credits may go negative. |
+| Debt increase after a loss | The ship cost is added to the debt. The pilot runs one or more tutorials to recover that increase, which also trains ship control. |
 
 ## Fixed rules inherited from the migration
 
