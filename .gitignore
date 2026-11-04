@@ -1,0 +1,9 @@
+/web/build/
+*.o
+/tests_bin/
+*.db
+*.sqlite*
+save.dat
+highscores.txt
+__pycache__/
+node_modules/

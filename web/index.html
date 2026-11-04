@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="pt-PT">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>C-Space Cockpit</title>
+  <style>
+    html, body { margin: 0; height: 100%; background: #020605; color: #6dff85; font-family: monospace; }
+    body { display: flex; flex-direction: column; align-items: center; }
+    #stage { position: relative; width: min(100vw, calc(100vh * 16 / 9)); aspect-ratio: 16 / 9; margin-top: 0; }
+    #stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+    .panel { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;
+             gap: .8rem; background: rgba(2, 6, 5, .88); text-align: center; }
+    .panel[hidden] { display: none; }
+    button { font: inherit; color: #6dff85; background: #06120a; border: 1px solid #1d5a2b; padding: .6rem 1rem; min-height: 2.75rem; cursor: pointer; }
+    button:hover, button:focus-visible { border-color: #6dff85; outline: none; }
+    #status { min-height: 1.2em; margin: .4rem; color: #ffb000; }
+    #touch { display: flex; flex-wrap: wrap; gap: .4rem; justify-content: center; padding: .4rem; }
+    #touch button { touch-action: none; min-width: 3.2rem; user-select: none; }
+  </style>
+</head>
+<body>
+  <div id="stage">
+    <canvas id="gl" aria-label="Vista do cockpit"></canvas>
+    <canvas id="hud" aria-hidden="true"></canvas>
+    <div id="menu" class="panel" hidden>
+      <h1>C-SPACE COCKPIT</h1>
+      <p>Rota de teste: 12000 u, 4 dias de viagem, faixa de asteroides a meio.</p>
+      <div>
+        <button type="button" data-ship="0">NAVE LEVE</button>
+        <button type="button" data-ship="1">EQUILIBRADA</button>
+        <button type="button" data-ship="2">PESADA</button>
+      </div>
+      <p>Setas ou WASD: pilotar | Z/X: acelerador | Espaço: laser | P: piloto automático | Enter: iniciar</p>
+    </div>
+    <div id="end" class="panel" hidden>
+      <h2></h2><p></p>
+      <button id="restart" type="button">RECOMEÇAR (Enter)</button>
+    </div>
+  </div>
+  <p id="status" role="status">A carregar WebAssembly...</p>
+  <div id="touch" aria-label="Controlos tácteis">
+    <button type="button" data-action="0">Cima</button><button type="button" data-action="1">Baixo</button>
+    <button type="button" data-action="2">Esq.</button><button type="button" data-action="3">Dir.</button>
+    <button type="button" data-action="5">Travar</button><button type="button" data-action="4">Acelerar</button>
+    <button type="button" data-action="6">Laser</button><button type="button" data-action="7">Piloto</button>
+    <button id="sound" type="button" aria-pressed="false">SOM LIGADO</button>
+  </div>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/howler/2.2.4/howler.min.js"></script>
+  <script src="input.js"></script>
+  <script src="events.js"></script>
+  <script src="hud.js"></script>
+  <script src="render_gl.js"></script>
+  <script src="cockpit_wasm.js"></script>
+  <script src="cockpit.js"></script>
+</body>
+</html>
