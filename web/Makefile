@@ -10,7 +10,7 @@ SOUND_FILES := $(addprefix $(OUT)/sounds/,$(addsuffix .wav,$(SOUND_IDS)))
 SOUND_MANIFEST := $(OUT)/sounds/manifest.json
 MENU_MUSIC := $(OUT)/sounds/menu.wav
 EXPORTS := _cs_init _cs_input _cs_tick _cs_event_take _cs_stat _cs_scene_update _cs_seg_ptr _cs_seg_count _cs_pt_ptr _cs_pt_count _cs_con_ptr _cs_con_count _cs_const
-JS := keymap.js input.js events.js hud.js settings.js gamepad.js music_data.js music.js synth.js sfx.js music_director.js render_gl.js cockpit.js index.html
+JS := keymap.js input.js events.js hud.js settings.js gamepad.js music_data.js music.js synth.js sfx.js music_director.js render_gl.js story.js cockpit.js index.html
 .PHONY: all check-toolchain test test-c test-js test-sound-assets serve test-browser clean
 all: check-toolchain $(OUT)/cockpit_wasm.js $(addprefix $(OUT)/,$(JS)) $(SOUND_MANIFEST) $(SOUND_FILES) $(MENU_MUSIC)
 check-toolchain:
@@ -33,7 +33,9 @@ test-c:
 	$(CC) -std=c11 -Wall -Wextra -Werror -O2 -fsanitize=address,undefined $(CORE) core/test_level.c -lm -o "$$tmp/level" && "$$tmp/level"
 test-js:
 	$(NODE) --check web/cockpit.js
+	$(NODE) --check web/story.js
 	$(NODE) web/test_js.js
+	$(NODE) web/test_story.js
 	$(NODE) --check web/music_data.js
 	$(NODE) --check web/music.js
 	$(NODE) --check web/synth.js

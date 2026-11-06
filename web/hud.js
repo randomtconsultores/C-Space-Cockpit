@@ -72,6 +72,17 @@
       ctx.font = s + "px monospace";
     }
 
+    /* story hint line above the dashboard */
+    var hint = "";
+    if (typeof CockpitStory !== "undefined") {
+      hint = CockpitStory.hintForState(stats);
+    }
+    if (hint) {
+      ctx.font = Math.round(s * 0.9) + "px monospace"; ctx.textAlign = "center";
+      ctx.fillStyle = "#c8f5d0"; ctx.shadowColor = "#000"; ctx.shadowBlur = 6; ctx.fillText(hint, cx, wTop + s * 4.5); ctx.shadowBlur = 0;
+      ctx.font = s + "px monospace";
+    }
+
     /* dashboard */
     var top = h - dash;
     ctx.fillStyle = "#04100a"; ctx.fillRect(0, top, w, dash);
@@ -85,6 +96,25 @@
     bar(ctx, x0, y + gap * 3, colW, bh, stats(STAT.HULL) / stats(STAT.HULL_MAX), stats(STAT.HULL) < stats(STAT.HULL_MAX) * 0.25 ? RED : GREEN,
       "CASCO", Math.round(stats(STAT.HULL)) + " / " + Math.round(stats(STAT.HULL_MAX)));
     bar(ctx, x0 + colW + w * 0.02, y + gap * 3, w * 0.1, bh, stats(STAT.ENERGY) / stats(STAT.ENERGY_MAX), AMBER, "LASER", "");
+
+    /* guidance: altitude (ascent), tilt (ascent), sling offset (lunar zone) */
+    var phase = stats(STAT.PHASE);
+    var gy = Math.round(s * 4);
+    if (phase === 0) {
+      var altKm = Math.round(stats(STAT.ALTITUDE) / 7);
+      ctx.fillStyle = GREEN; ctx.textAlign = "left";
+      ctx.fillText("ALTITUDE " + altKm + " km", x0, gy);
+      var tilt = stats(STAT.ASCENT_ANGLE);
+      var targetTilt = (Math.PI / 2) * (1 - stats(STAT.ALTITUDE) / 700);
+      if (targetTilt < 0) targetTilt = 0;
+      ctx.fillText("INCLINAÇÃO " + Math.round(tilt * 180 / Math.PI) + "° / alvo " + Math.round(targetTilt * 180 / Math.PI) + "°", x0, gy + s * 1.5);
+    } else if (phase === 3) {
+      var offset = stats(STAT.SLING_OFFSET);
+      var quality = stats(STAT.SLING_QUALITY);
+      var scolor = quality >= 0.7 ? GREEN : (quality >= 0.3 ? AMBER : RED);
+      ctx.fillStyle = scolor; ctx.textAlign = "left";
+      ctx.fillText("DESVIO " + Math.round(offset) + " u  Q " + Math.round(quality * 100) + "%", x0, gy);
+    }
 
     scanner(ctx, w * 0.5, top + dash * 0.52, w * 0.13, dash * 0.34, contacts, contactCount, stats(STAT.SENSOR_RANGE));
     ctx.fillStyle = GREEN; ctx.textAlign = "center"; ctx.fillText("SCANNER 3D", w * 0.5, top + dash * 0.15);

@@ -1,4 +1,5 @@
 #include "scene.h"
+#include "level.h"
 #include <math.h>
 #include <string.h>
 
@@ -73,6 +74,100 @@ static void draw_ring(Scene *s, const View *v, float cx, float cy, float cz, flo
     (void)first;
 }
 
+static void draw_earth(Scene *s, const View *v, const Flight *f)
+{
+    if (f->pz >= LV_ATMO_END) return;
+    float earth_r = 600.0f * (1.0f - f->pz / LV_ATMO_END);
+    if (earth_r < 30.0f) return;
+    float tilt = f->tilt_angle;
+    float ct = cosf(tilt), st = sinf(tilt);
+    float ey = -earth_r * 0.7f;
+    float ez = f->pz + 100.0f;
+    /* Paralelos */
+    for (int i = 1; i < 10; i++) {
+        float lat = -1.5707963f + 3.1415926f * (float)i / 9.0f;
+        float r = earth_r * cosf(lat), yc = earth_r * sinf(lat);
+        float prev[3] = {0,0,0}, first[3] = {0,0,0};
+        for (int j = 0; j <= 16; j++) {
+            float lon = 6.2831853f * (float)j / 16.0f;
+            float x = r * cosf(lon), z = r * sinf(lon);
+            float y2 = yc * ct - z * st, z2 = yc * st + z * ct;
+            float cur[3];
+            to_view(v, x, ey + y2, ez + z2, cur, 1);
+            if (j == 0) memcpy(first, cur, sizeof cur); else add_seg(s, prev, cur, SC_EARTH);
+            memcpy(prev, cur, sizeof cur);
+        }
+        add_seg(s, prev, first, SC_EARTH);
+    }
+    /* Meridianos */
+    for (int j = 0; j < 12; j++) {
+        float lon = 6.2831853f * (float)j / 12.0f;
+        float prev[3] = {0,0,0}, first[3] = {0,0,0};
+        for (int i = 0; i <= 10; i++) {
+            float lat = -1.5707963f + 3.1415926f * (float)i / 10.0f;
+            float r = earth_r * cosf(lat), yc = earth_r * sinf(lat);
+            float x = r * cosf(lon), z = r * sinf(lon);
+            float y2 = yc * ct - z * st, z2 = yc * st + z * ct;
+            float cur[3];
+            to_view(v, x, ey + y2, ez + z2, cur, 1);
+            if (i == 0) memcpy(first, cur, sizeof cur); else add_seg(s, prev, cur, SC_EARTH);
+            memcpy(prev, cur, sizeof cur);
+        }
+        add_seg(s, prev, first, SC_EARTH);
+    }
+    /* Contorno de continentes simples (poucas linhas perto do equador) */
+    {
+        float c[6][3];
+        for (int k = 0; k < 6; k++) {
+            float a = 6.2831853f * (float)k / 6.0f;
+            float r = earth_r * (0.85f + 0.10f * (float)(k % 3));
+            float x = r * cosf(a), z = r * sinf(a);
+            float y2 = 0.0f * ct - z * st, z2 = 0.0f * st + z * ct;
+            to_view(v, x, ey + y2, ez + z2, c[k], 1);
+        }
+        for (int k = 0; k < 6; k++) add_seg(s, c[k], c[(k + 1) % 6], SC_EARTH);
+    }
+}
+
+/* The Moon sits at a fixed world position beside the reference corridor so the
+   pilot flies past it. It is visible from far away and approaches as pz grows. */
+static void draw_moon(Scene *s, const View *v, const Flight *f)
+{
+    float lx, ly;
+    if (!lv_moon_xy(f, LV_MOON_Z, &lx, &ly)) return;
+    float mz = LV_MOON_Z + 150.0f;
+    float ahead = mz - f->pz;
+    if (ahead < -400.0f || ahead > 2600.0f) return;
+    float moon_r = 140.0f;
+    float mx = lx + moon_r + 130.0f, my = ly;
+    float verts[12][3];
+    for (int i = 0; i < 12; i++) {
+        float jit = 0.92f + 0.08f * (float)(rng_hash(1000u + (unsigned)i * 7919u) & 0xff) / 255.0f;
+        float x = ico_v[i][0] * jit * moon_r, y = ico_v[i][1] * jit * moon_r, z = ico_v[i][2] * jit * moon_r;
+        to_view(v, mx + x, my + y, mz + z, verts[i], 1);
+    }
+    for (int e = 0; e < 30; e++) add_seg(s, verts[ico_e[e][0]], verts[ico_e[e][1]], SC_MOON);
+}
+
+static void draw_guide_rings(Scene *s, const View *v, const Flight *f)
+{
+    if (f->pz < LV_MOON_Z - LV_MOON_ZONE || f->pz > LV_MOON_Z + LV_MOON_ZONE) return;
+    int n_rings = 10;
+    float zone = LV_MOON_ZONE * 2.0f;
+    for (int i = 0; i < n_rings; i++) {
+        float z = LV_MOON_Z - LV_MOON_ZONE + zone * (float)i / (float)(n_rings - 1);
+        float lx, ly;
+        if (!lv_moon_xy(f, z, &lx, &ly)) continue;
+        float ahead = z - f->pz;
+        if (ahead <= 0.0f) continue;
+        float rad = 35.0f;
+        float bright = 1.0f - ahead / zone;
+        if (bright <= 0.05f) continue;
+        draw_ring(s, v, lx, ly, z, rad, 2, 10, SC_GUIDE);
+        draw_ring(s, v, lx, ly, z, rad, 1, 10, SC_GUIDE);
+    }
+}
+
 void scene_build(const Flight *f, Scene *s)
 {
     if (!ico_ready) ico_init();
@@ -83,19 +178,26 @@ void scene_build(const Flight *f, Scene *s)
     v.ox = sinf((float)f->tick * 2.3f) * sh * 1.5f; v.oy = cosf((float)f->tick * 3.1f) * sh * 1.5f;
     v.px = f->px; v.py = f->py; v.pz = f->pz;
 
-    /* stars at infinity: direction only, rotated by the ship heading */
-    for (int i = 0; i < SCENE_STARS; i++) {
+    float d = lv_density(f->pz);
+    float fade = 1.0f - d;
+
+    /* stars at infinity: direction only, rotated by the ship heading.
+       Hidden during thick atmosphere, fade in as density drops. */
+    if (d < 0.95f) {
+    for (int i = 0; i < SCENE_STARS && s->pt_count < SCENE_MAX_POINTS; i++) {
         float zc = 2.0f * (float)(rng_hash((unsigned)i * 3u + 1u) >> 8) / 16777216.0f - 1.0f;
         float ph = 6.2831853f * (float)(rng_hash((unsigned)i * 3u + 2u) >> 8) / 16777216.0f;
         float rr = sqrtf(1.0f - zc * zc), o[3];
         to_view(&v, rr * cosf(ph), rr * sinf(ph), zc, o, 0);
         if (o[2] <= 0.05f) continue;
-        float *d = &s->pts[s->pt_count++ * SCENE_PT_STRIDE];
-        d[0] = o[0] * 2000.0f; d[1] = o[1] * 2000.0f; d[2] = o[2] * 2000.0f;
-        d[3] = 0.35f + 0.65f * (float)(rng_hash((unsigned)i * 3u + 3u) & 0xff) / 255.0f;
+        float *dp = &s->pts[s->pt_count++ * SCENE_PT_STRIDE];
+        dp[0] = o[0] * 2000.0f; dp[1] = o[1] * 2000.0f; dp[2] = o[2] * 2000.0f;
+        dp[3] = (0.35f + 0.65f * (float)(rng_hash((unsigned)i * 3u + 3u) & 0xff) / 255.0f) * fade;
+    }
     }
     /* dust wraps around the ship: gives parallax and a sense of speed */
-    for (int i = 0; i < SCENE_DUST; i++) {
+    if (d < 0.95f) {
+    for (int i = 0; i < SCENE_DUST && s->pt_count < SCENE_MAX_POINTS; i++) {
         float w[3], o[3];
         for (int k = 0; k < 3; k++) {
             float base = 400.0f * (float)(rng_hash((unsigned)i * 5u + (unsigned)k + 100u) >> 8) / 16777216.0f;
@@ -105,8 +207,9 @@ void scene_build(const Flight *f, Scene *s)
         }
         to_view(&v, w[0], w[1], w[2], o, 0);
         if (o[2] <= SCENE_NEAR) continue;
-        float *d = &s->pts[s->pt_count++ * SCENE_PT_STRIDE];
-        d[0] = o[0]; d[1] = o[1]; d[2] = o[2]; d[3] = 0.25f;
+        float *dp = &s->pts[s->pt_count++ * SCENE_PT_STRIDE];
+        dp[0] = o[0]; dp[1] = o[1]; dp[2] = o[2]; dp[3] = 0.25f * fade;
+    }
     }
     /* route gates every 500 units */
     float z0 = ceilf(f->pz / 500.0f) * 500.0f;
@@ -122,6 +225,11 @@ void scene_build(const Flight *f, Scene *s)
         draw_ring(s, &v, 0, 0, pz, 450.0f, 1, 28, SC_PLANET);
         draw_ring(s, &v, 0, 0, pz, 450.0f, 0, 28, SC_PLANET);
     }
+    /* Earth during ascent */
+    draw_earth(s, &v, f);
+    /* Moon and guide rings in the lunar zone */
+    draw_moon(s, &v, f);
+    draw_guide_rings(s, &v, f);
     /* rocks, contact markers and scanner contacts */
     for (int i = 0; i < f->rock_total; i++) {
         const Rock *k = &f->rocks[i];

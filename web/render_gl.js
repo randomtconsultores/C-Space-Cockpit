@@ -2,20 +2,24 @@
    It knows nothing about game rules. */
 (function (root) {
   "use strict";
-  var VS_LINE = "attribute vec3 aPos; attribute float aCol; uniform float uF; uniform float uAsp;\n" +
+  var VS_LINE = "attribute vec3 aPos; attribute float aCol; uniform float uF; uniform float uAsp; uniform float uShake; uniform float uTime;\n" +
     "varying float vCol; varying float vFade;\n" +
     "void main(){ vCol=aCol; vFade=clamp(1.15-aPos.z/4200.0,0.18,1.0);\n" +
-    "gl_Position=vec4(aPos.x*uF/uAsp, aPos.y*uF, 0.0, aPos.z); }";
+    "float sx=sin(uTime*8.0+aPos.z*0.05)*uShake*2.0; float sy=cos(uTime*11.0+aPos.z*0.05)*uShake*2.0;\n" +
+    "gl_Position=vec4((aPos.x+sx)*uF/uAsp, (aPos.y+sy)*uF, 0.0, aPos.z); }";
   var FS_LINE = "precision mediump float; varying float vCol; varying float vFade;\n" +
     "void main(){ vec3 c=vec3(0.35,1.0,0.45);\n" +
     "if(vCol>0.5&&vCol<1.5) c=vec3(0.12,0.45,0.2);\n" +
     "else if(vCol>1.5&&vCol<2.5) c=vec3(1.0,0.69,0.0);\n" +
     "else if(vCol>2.5&&vCol<3.5) c=vec3(1.0,0.35,0.3);\n" +
-    "else if(vCol>3.5) c=vec3(0.3,0.85,1.0);\n" +
+    "else if(vCol>3.5&&vCol<4.5) c=vec3(0.3,0.85,1.0);\n" +
+    "else if(vCol>4.5&&vCol<5.5) c=vec3(0.2,0.6,0.8);\n" +
+    "else if(vCol>5.5) c=vec3(0.8,0.8,0.85);\n" +
     "gl_FragColor=vec4(c*vFade,1.0); }";
-  var VS_PT = "attribute vec4 aPos; uniform float uF; uniform float uAsp; uniform float uPx; varying float vB;\n" +
-    "void main(){ vB=aPos.w; gl_PointSize=uPx*(0.8+aPos.w);\n" +
-    "gl_Position=vec4(aPos.x*uF/uAsp, aPos.y*uF, 0.0, aPos.z); }";
+  var VS_PT = "attribute vec4 aPos; uniform float uF; uniform float uAsp; uniform float uPx; uniform float uShake; uniform float uTime; varying float vB;\n" +
+    "void main(){ vB=aPos.w; float sx=sin(uTime*8.0+aPos.z*0.05)*uShake*2.0; float sy=cos(uTime*11.0+aPos.z*0.05)*uShake*2.0;\n" +
+    "gl_PointSize=uPx*(0.8+aPos.w);\n" +
+    "gl_Position=vec4((aPos.x+sx)*uF/uAsp, (aPos.y+sy)*uF, 0.0, aPos.z); }";
   var FS_PT = "precision mediump float; varying float vB;\n" +
     "void main(){ gl_FragColor=vec4(vec3(0.75,1.0,0.8)*vB,1.0); }";
 
@@ -48,15 +52,19 @@
     this.dpr = dpr; this.gl.viewport(0, 0, this.canvas.width, this.canvas.height);
   };
   /* seg: Float32Array view (stride 7), pts: Float32Array view (stride 4) */
-  Renderer.prototype.draw = function (seg, segCount, pts, ptCount) {
+  Renderer.prototype.draw = function (seg, segCount, pts, ptCount, density, speed, time) {
     var gl = this.gl, asp = this.canvas.width / this.canvas.height;
-    gl.clearColor(0.0, 0.015, 0.02, 1); gl.clear(gl.COLOR_BUFFER_BIT);
+    var skyR = 0.35 * density, skyG = 0.60 * density + 0.015 * (1 - density), skyB = 0.95 * density + 0.02 * (1 - density);
+    gl.clearColor(skyR, skyG, skyB, 1); gl.clear(gl.COLOR_BUFFER_BIT);
     gl.disable(gl.DEPTH_TEST); gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE);
 
+    var shake = density * speed * 0.015;
     gl.useProgram(this.pt);
     gl.uniform1f(gl.getUniformLocation(this.pt, "uF"), this.f);
     gl.uniform1f(gl.getUniformLocation(this.pt, "uAsp"), asp);
     gl.uniform1f(gl.getUniformLocation(this.pt, "uPx"), 1.5 * (this.dpr || 1));
+    gl.uniform1f(gl.getUniformLocation(this.pt, "uShake"), shake);
+    gl.uniform1f(gl.getUniformLocation(this.pt, "uTime"), time || 0);
     gl.bindBuffer(gl.ARRAY_BUFFER, this.ptBuf);
     gl.bufferData(gl.ARRAY_BUFFER, pts.subarray(0, ptCount * 4), gl.DYNAMIC_DRAW);
     var ap = gl.getAttribLocation(this.pt, "aPos");
@@ -72,6 +80,8 @@
     gl.useProgram(this.line);
     gl.uniform1f(gl.getUniformLocation(this.line, "uF"), this.f);
     gl.uniform1f(gl.getUniformLocation(this.line, "uAsp"), asp);
+    gl.uniform1f(gl.getUniformLocation(this.line, "uShake"), shake);
+    gl.uniform1f(gl.getUniformLocation(this.line, "uTime"), time || 0);
     gl.bindBuffer(gl.ARRAY_BUFFER, this.lineBuf);
     gl.bufferData(gl.ARRAY_BUFFER, o.subarray(0, k), gl.DYNAMIC_DRAW);
     var apos = gl.getAttribLocation(this.line, "aPos"), acol = gl.getAttribLocation(this.line, "aCol");

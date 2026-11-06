@@ -10,6 +10,8 @@
   var pauseNode = document.getElementById("pause");
   var pitchNode = document.getElementById("pitch-text");
   var debugNode = document.getElementById("debug");
+  var msgNode = document.getElementById("event-msg");
+  var msgTimer = 0;
   var hudCtx = hudCanvas.getContext("2d");
   var core = null, renderer = null, running = false, accum = 0, last = 0, ended = false;
   var paused = false, autoPaused = false;
@@ -38,6 +40,13 @@
       if (!synthPlayed) sound(CockpitEvents.soundFor(ev));
       var v = CockpitEvents.vibrationFor(ev);
       if (v && navigator.vibrate) navigator.vibrate(v);
+      if (typeof CockpitStory !== "undefined") {
+        var et = CockpitStory.textForEvent(ev);
+        if (et && msgNode && et !== CockpitStory.hintForState(function (id) { return core._cs_stat(id); })) {
+          msgNode.textContent = et;
+          msgTimer = 240; /* 4 seconds at 60 fps */
+        }
+      }
     }
   }
   function resize() {
@@ -93,10 +102,12 @@
       /* music: update music each frame */
       if (musicDirector) musicDirector.update(function (id) { return core ? core._cs_stat(id) : 0; }, now);  // music:
       handleEvents();
+      if (msgTimer > 0) { msgTimer--; if (msgTimer === 0 && msgNode) msgNode.textContent = ""; }
       core._cs_scene_update();
       var sc = core._cs_const(0), pc = core._cs_const(1), cc = core._cs_const(2);
       var segN = core._cs_seg_count(), ptN = core._cs_pt_count(), conN = core._cs_con_count();
-      renderer.draw(floats(core._cs_seg_ptr(), segN, sc), segN, floats(core._cs_pt_ptr(), ptN, pc), ptN);
+      renderer.draw(floats(core._cs_seg_ptr(), segN, sc), segN, floats(core._cs_pt_ptr(), ptN, pc), ptN,
+        core._cs_stat(CockpitHud.STAT.ATMO_DENSITY), core._cs_stat(CockpitHud.STAT.SPEED), now / 1000);
       var r = stage.getBoundingClientRect();
       CockpitHud.draw(hudCtx, r.width, r.height, function (id) { return core._cs_stat(id); },
         floats(core._cs_con_ptr(), conN, cc), conN, Math.floor(now / 350) % 2 === 0);

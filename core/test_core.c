@@ -244,8 +244,85 @@ static void test_scene(void)
     static Scene S2; scene_build(&F, &S2);
     CHECK(S.seg_count == S2.seg_count);
 }
-static void test_stat_bounds(void)
+static void test_scene_intro(void)
 {
+    /* Platform (pz = 0): Earth present, finite, within limits. */
+    flight_init(&F, SHIP_BALANCED, 11);
+    F.pz = 0.0f; F.mode = FL_MODE_MANUAL; F.tilt_angle = 1.5707963f;
+    scene_build(&F, &S);
+    CHECK(S.seg_count > 0 && S.seg_count <= SCENE_MAX_SEGS);
+    CHECK(S.pt_count <= SCENE_MAX_POINTS);
+    int earth_segs = 0;
+    for (int i = 0; i < S.seg_count; i++) {
+        const float *sg = &S.seg[i * SCENE_SEG_STRIDE];
+        CHECK(sg[2] >= SCENE_NEAR - 1e-3f && sg[5] >= SCENE_NEAR - 1e-3f);
+        for (int k = 0; k < 7; k++) CHECK(isfinite(sg[k]));
+        if ((int)sg[6] == SC_EARTH) earth_segs++;
+    }
+    CHECK(earth_segs > 0); /* Earth visible at start */
+    /* Stars hidden at ground (density ~1). */
+    int star_count = 0;
+    for (int i = 0; i < S.pt_count; i++) if (S.pts[i * SCENE_PT_STRIDE + 3] > 0.01f) star_count++;
+    CHECK(star_count < SCENE_STARS);
+
+    /* Mid-ascent (pz = 350): Earth still present but smaller. Stars and dust reappear. */
+    flight_init(&F, SHIP_BALANCED, 11);
+    F.pz = 350.0f; F.mode = FL_MODE_MANUAL; F.tilt_angle = 1.0f;
+    scene_build(&F, &S);
+    CHECK(S.seg_count <= SCENE_MAX_SEGS);
+    CHECK(S.pt_count > 0);
+    int earth_mid = 0;
+    for (int i = 0; i < S.seg_count; i++) if ((int)S.seg[i * SCENE_SEG_STRIDE + 6] == SC_EARTH) earth_mid++;
+    CHECK(earth_mid > 0);
+
+    /* Above atmosphere (pz = 800): no Earth, stars reappear. */
+    flight_init(&F, SHIP_BALANCED, 11);
+    F.pz = 800.0f; F.mode = FL_MODE_MANUAL; F.tilt_angle = 0.0f;
+    scene_build(&F, &S);
+    CHECK(S.seg_count <= SCENE_MAX_SEGS);
+    int earth_high = 0;
+    for (int i = 0; i < S.seg_count; i++) if ((int)S.seg[i * SCENE_SEG_STRIDE + 6] == SC_EARTH) earth_high++;
+    CHECK(earth_high == 0);
+    int star_high = 0;
+    for (int i = 0; i < S.pt_count; i++) if (S.pts[i * SCENE_PT_STRIDE + 3] > 0.01f) star_high++;
+    CHECK(star_high > 0);
+
+    /* Lunar zone (pz = 3000): Moon and guide rings present. */
+    flight_init(&F, SHIP_BALANCED, 11);
+    F.pz = 3000.0f; F.mode = FL_MODE_MANUAL;
+    scene_build(&F, &S);
+    CHECK(S.seg_count <= SCENE_MAX_SEGS);
+    int moon_segs = 0, guide_segs = 0;
+    for (int i = 0; i < S.seg_count; i++) {
+        int c = (int)S.seg[i * SCENE_SEG_STRIDE + 6];
+        if (c == SC_MOON) moon_segs++;
+        if (c == SC_GUIDE) guide_segs++;
+    }
+    CHECK(moon_segs > 0);
+    CHECK(guide_segs > 0);
+
+    /* Determinism: same seed, same scene. */
+    static Scene S2;
+    flight_init(&F, SHIP_BALANCED, 11);
+    F.pz = 3000.0f; F.mode = FL_MODE_MANUAL;
+    scene_build(&F, &S);
+    scene_build(&F, &S2);
+    CHECK(S.seg_count == S2.seg_count);
+    CHECK(S.pt_count == S2.pt_count);
+    for (int i = 0; i < S.seg_count * SCENE_SEG_STRIDE; i++)
+        CHECK(S.seg[i] == S2.seg[i]);
+
+    /* Belt still fits within SCENE_MAX_SEGS with all scene elements. */
+    flight_init(&F, SHIP_BALANCED, 11);
+    F.pz = 6000.0f; F.mode = FL_MODE_MANUAL;
+    scene_build(&F, &S);
+    CHECK(S.seg_count > 0 && S.seg_count <= SCENE_MAX_SEGS);
+    for (int i = 0; i < S.seg_count; i++) {
+        const float *sg = &S.seg[i * SCENE_SEG_STRIDE];
+        for (int k = 0; k < 7; k++) CHECK(isfinite(sg[k]));
+    }
+}
+static void test_stat_bounds(void) {
     flight_init(&F, SHIP_BALANCED, 1);
     for (int id = 0; id < FS_COUNT; id++) CHECK(isfinite(flight_stat(&F, id)));
     CHECK(flight_stat(&F, 999) == 0.0f);
@@ -414,7 +491,7 @@ int main(void)
     test_collision_and_laser(); test_destroyed();
     test_fuel(); test_time_and_arrival(); test_corridor(); test_inertia_press_release();
     test_turn_rate_heavy_vs_light(); test_max_angle_limit(); test_simultaneous_inputs_cancel();
-    test_scene(); test_stat_bounds(); test_solvability_seeds();
+    test_scene(); test_stat_bounds(); test_scene_intro(); test_solvability_seeds();
     printf("%d checks, %d failures\n", checks, failures);
     return failures ? 1 : 0;
 }

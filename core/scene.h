@@ -12,7 +12,7 @@
 #define SCENE_PT_STRIDE   4   /* x y z brightness */
 #define SCENE_CON_STRIDE  4   /* x y z kind (view space, for the scanner) */
 #define SCENE_NEAR        1.0f
-enum SceneColor { SC_ROCK = 0, SC_GUIDE = 1, SC_CONTACT = 2, SC_LASER = 3, SC_PLANET = 4 };
+enum SceneColor { SC_ROCK = 0, SC_GUIDE = 1, SC_CONTACT = 2, SC_LASER = 3, SC_PLANET = 4, SC_EARTH = 5, SC_MOON = 6 };
 typedef struct {
     float seg[SCENE_MAX_SEGS * SCENE_SEG_STRIDE];
     int   seg_count;
