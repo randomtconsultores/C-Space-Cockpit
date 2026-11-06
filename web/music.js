@@ -55,7 +55,7 @@
         calm: (base.layers && base.layers.calm) ? base.layers.calm.slice() : ["pad", "motif"],
         alert: (base.layers && base.layers.alert) ? base.layers.alert.slice() : ["pad", "motif"],
         belt: (base.layers && base.layers.belt) ? base.layers.belt.slice() : ["pad", "bass", "kick", "hats"],
-        combat: (base.layers && base.layers.combat) ? base.layers.combat.slice() : ["bass", "kick", "clap", "hats", "arp", "lead", "riser_off"],
+        combat: (base.layers && base.layers.combat) ? base.layers.combat.slice() : ["bass", "kick", "clap", "hats", "arp", "lead"],
         arrival: (base.layers && base.layers.arrival) ? base.layers.arrival.slice() : ["pad", "motif"]
       },
       transition: { bars: (base.transition && base.transition.bars !== undefined) ? base.transition.bars : 2 }
@@ -223,7 +223,9 @@
         }
       }
       if (layers.indexOf("riser_off") >= 0) {
-        push(fromBeatAbs, 4.0, 0, "riser_off", 0.5);
+        /* one riser per bar, starting on the bar line inside the window */
+        var rb = Math.ceil(fromBeatAbs / spb) * spb;
+        if (rb < toBeatAbs) push(rb, spb, 0, "riser_off", 0.4);
       }
     }
 

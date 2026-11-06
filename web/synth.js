@@ -118,6 +118,14 @@
     gainNode.linearRampToValueAtTime(0, when + dur);
   }
 
+  /* Percussive envelope: instant attack, exponential-like decay to zero. */
+  function perc(gainParam, dur, vel, when) {
+    gainParam.setValueAtTime(0, when);
+    gainParam.linearRampToValueAtTime(vel, when + 0.003);
+    gainParam.linearRampToValueAtTime(vel * 0.25, when + Math.min(dur * 0.3, 0.06));
+    gainParam.linearRampToValueAtTime(0, when + dur);
+  }
+
   function osc(type, freq, when, dur, vel, inst) {
     var o = ctx.createOscillator();
     var g = ctx.createGain();
@@ -137,18 +145,24 @@
 
   function midiToFreq(m) { return m > 0 ? 440.0 * Math.pow(2, (m - 69) / 12.0) : 0; }
 
-  function noiseSource(when, dur, filterType, filterFreq, vel) {
+  function noiseSource(when, dur, filterType, filterFreq, vel, opts) {
+    opts = opts || {};
     if (!NOISE_BUFFER) return;
     var n = ctx.createBufferSource();
     n.buffer = NOISE_BUFFER;
     var filt = ctx.createBiquadFilter();
     filt.type = filterType;
-    filt.frequency.value = filterFreq;
+    filt.frequency.setValueAtTime(filterFreq, when);
+    if (opts.sweepTo) filt.frequency.exponentialRampToValueAtTime(opts.sweepTo, when + dur);
     var g = ctx.createGain();
     n.connect(filt);
     filt.connect(g);
     g.connect(master);
-    env(g.gain, dur, vel, when);
+    if (opts.rise) {
+      g.gain.setValueAtTime(0.0001, when);
+      g.gain.linearRampToValueAtTime(vel, when + dur * 0.95);
+      g.gain.linearRampToValueAtTime(0, when + dur);
+    } else perc(g.gain, dur, vel, when);
     n.start(when);
     n.stop(when + dur);
     registerVoice({ o: n, g: g, inst: "noise", priority: instPriority("hats"), stopTime: when + dur });
@@ -175,18 +189,23 @@
         osc("sine", base * 3, when, dur, vel * 0.4, "pad");
         break;
       }
-      case "melody":
-      case "lead": {
+      case "melody": {
         osc("sine", base, when, dur, vel, inst);
+        break;
+      }
+      case "lead": {
+        osc("square", base, when, dur, vel * 0.5, inst);
         break;
       }
       case "bass": {
         var o = ctx.createOscillator(); o.type = "sawtooth";
         var g = ctx.createGain();
         o.frequency.setValueAtTime(base, when);
-        o.frequency.exponentialRampToValueAtTime(Math.max(40, base * 0.5), when + dur);
-        o.connect(g); g.connect(master);
-        env(g.gain, dur, vel, when);
+        var lp = ctx.createBiquadFilter(); lp.type = "lowpass";
+        lp.frequency.setValueAtTime(900, when);
+        lp.frequency.exponentialRampToValueAtTime(250, when + dur);
+        o.connect(lp); lp.connect(g); g.connect(master);
+        perc(g.gain, dur, vel * 0.8, when);
         o.start(when); o.stop(when + dur);
         registerVoice({ o: o, g: g, inst: "bass", priority: instPriority("bass"), stopTime: when + dur });
         o.onended = function () { try { o.disconnect(); } catch (e) {} try { g.disconnect(); } catch (e) {} };
@@ -200,9 +219,9 @@
         var o = ctx.createOscillator(); o.type = "sine";
         var g = ctx.createGain();
         o.frequency.setValueAtTime(150, when);
-        o.frequency.exponentialRampToValueAtTime(40, when + dur);
+        o.frequency.exponentialRampToValueAtTime(45, when + Math.min(dur, 0.12));
         o.connect(g); g.connect(master);
-        env(g.gain, dur, vel, when);
+        perc(g.gain, Math.min(dur, 0.25), vel, when);
         o.start(when); o.stop(when + dur);
         registerVoice({ o: o, g: g, inst: "kick", priority: instPriority("kick"), stopTime: when + dur });
         o.onended = function () { try { o.disconnect(); } catch (e) {} try { g.disconnect(); } catch (e) {} };
@@ -214,7 +233,7 @@
         break;
       }
       case "riser_off": {
-        noiseSource(when, dur, "highpass", 800, vel);
+        noiseSource(when, dur, "highpass", 400, vel, { rise: true, sweepTo: 8000 });
         break;
       }
     }

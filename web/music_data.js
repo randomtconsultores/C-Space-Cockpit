@@ -46,7 +46,7 @@
           calm: ["pad", "motif"],
           alert: ["pad", "motif", "bass", "hats"],
           belt: ["pad", "bass", "kick", "hats", "arp", "lead"],
-          combat: ["bass", "kick", "clap", "hats", "arp", "lead", "riser_off"],
+          combat: ["bass", "kick", "clap", "hats", "arp", "lead"],
           arrival: ["pad", "motif"]
         },
         transition: { bars: 2 }
