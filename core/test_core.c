@@ -260,7 +260,7 @@ static void test_scene_intro(void)
         for (int k = 0; k < 7; k++) CHECK(isfinite(sg[k]));
         if ((int)sg[6] == SC_EARTH) earth_segs++;
     }
-    CHECK(earth_segs > 0); /* Earth visible at start */
+    CHECK(earth_segs == 0); /* the Earth is no longer drawn */
     /* Stars hidden at ground (density ~1). */
     int star_count = 0;
     for (int i = 0; i < S.pt_count; i++) if (S.pts[i * SCENE_PT_STRIDE + 3] > 0.01f) star_count++;
@@ -274,7 +274,7 @@ static void test_scene_intro(void)
     CHECK(S.pt_count > 0);
     int earth_mid = 0;
     for (int i = 0; i < S.seg_count; i++) if ((int)S.seg[i * SCENE_SEG_STRIDE + 6] == SC_EARTH) earth_mid++;
-    CHECK(earth_mid > 0);
+    CHECK(earth_mid == 0);
 
     /* Above atmosphere (pz = 2600 > LV_ATMO_END=2500): no Earth, stars reappear. */
     flight_init(&F, SHIP_BALANCED, 11);
@@ -297,7 +297,7 @@ static void test_scene_intro(void)
     for (int i = 0; i < S.seg_count; i++) {
         int c = (int)S.seg[i * SCENE_SEG_STRIDE + 6];
         if (c == SC_MOON) moon_segs++;
-        if (c == SC_GUIDE) guide_segs++;
+        if (c == SC_PATH) guide_segs++;
     }
     CHECK(moon_segs > 0);
     CHECK(guide_segs > 0);

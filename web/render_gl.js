@@ -51,7 +51,8 @@
     "else if(vCol>2.5&&vCol<3.5) c=vec3(1.0,0.35,0.3);\n" +
     "else if(vCol>3.5&&vCol<4.5) c=vec3(0.3,0.85,1.0);\n" +
     "else if(vCol>4.5&&vCol<5.5) c=vec3(0.2,0.6,0.8);\n" +
-    "else if(vCol>5.5) c=vec3(0.8,0.8,0.85);\n" +
+    "else if(vCol>5.5&&vCol<6.5) c=vec3(0.8,0.8,0.85);\n" +
+    "else if(vCol>6.5) c=vec3(1.0,0.25,0.9);\n" +
     "gl_FragColor=vec4(c*vFade,1.0); }";
   var VS_PT = "attribute vec4 aPos; uniform float uF; uniform float uAsp; uniform float uPx; uniform float uShake; uniform float uTime; varying float vB;\n" +
     "void main(){ vB=aPos.w; float sx=sin(uTime*8.0+aPos.z*0.05)*uShake*2.0; float sy=cos(uTime*11.0+aPos.z*0.05)*uShake*2.0;\n" +
@@ -59,6 +60,20 @@
     "gl_Position=vec4((aPos.x+sx)*uF/uAsp, (aPos.y+sy)*uF, 0.0, aPos.z); }";
   var FS_PT = "precision mediump float; varying float vB;\n" +
     "void main(){ gl_FragColor=vec4(vec3(0.75,1.0,0.8)*vB,1.0); }";
+
+  /* Heat of atmospheric exit: 0 on the ground and in space, peak (1) around the orange/red stage. */
+  function smooth(e0, e1, x) { var k = Math.min(1, Math.max(0, (x - e0) / (e1 - e0))); return k * k * (3 - 2 * k); }
+  function heatLevel(d) { return smooth(0.62, 0.38, d) * smooth(0.02, 0.18, d); }
+
+  var VS_HEAT = "attribute vec2 aP; varying vec2 vP; void main(){ vP=aP; gl_Position=vec4(aP,0.0,1.0); }";
+  var FS_HEAT = "precision mediump float; varying vec2 vP; uniform float uHeat; uniform float uTime; uniform float uAsp;\n" +
+    "void main(){ vec2 q=vec2(vP.x*uAsp,vP.y); float r=length(q)/ (uAsp*0.9);\n" +
+    "float a=atan(q.y,q.x);\n" +
+    "float fl=0.55+0.25*sin(a*7.0+uTime*9.0)+0.2*sin(a*13.0-uTime*14.0)+0.1*sin(a*3.0+uTime*5.0);\n" +
+    "float edge=smoothstep(0.6,1.25,r*(0.85+0.3*fl));\n" +
+    "float k=edge*edge*uHeat;\n" +
+    "vec3 c=mix(vec3(1.0,0.35,0.05),vec3(1.0,0.85,0.35),edge*fl);\n" +
+    "gl_FragColor=vec4(c*k*0.7,1.0); }";
 
   function compile(gl, type, src) {
     var s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s);
@@ -81,6 +96,10 @@
     this.f = 1 / Math.tan((fovDegrees || 70) * Math.PI / 360);
     this.line = program(gl, VS_LINE, FS_LINE);
     this.pt = program(gl, VS_PT, FS_PT);
+    this.heat = program(gl, VS_HEAT, FS_HEAT);
+    this.heatBuf = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.heatBuf);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
     this.lineBuf = gl.createBuffer(); this.ptBuf = gl.createBuffer();
     this.scratch = new Float32Array(4 * 2 * 3200);
   }
@@ -95,7 +114,19 @@
     gl.clearColor(sky[0], sky[1], sky[2], 1); gl.clear(gl.COLOR_BUFFER_BIT);
     gl.disable(gl.DEPTH_TEST); gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE);
 
-    var shake = density * speed * 0.015;
+    var heat = heatLevel(density);
+    var shake = density * speed * 0.015 + heat * speed * 0.004;
+    if (heat > 0.01) {
+      gl.useProgram(this.heat);
+      gl.uniform1f(gl.getUniformLocation(this.heat, "uHeat"), heat);
+      gl.uniform1f(gl.getUniformLocation(this.heat, "uTime"), time || 0);
+      gl.uniform1f(gl.getUniformLocation(this.heat, "uAsp"), asp);
+      gl.bindBuffer(gl.ARRAY_BUFFER, this.heatBuf);
+      var ah = gl.getAttribLocation(this.heat, "aP");
+      gl.enableVertexAttribArray(ah); gl.vertexAttribPointer(ah, 2, gl.FLOAT, false, 8, 0);
+      gl.drawArrays(gl.TRIANGLES, 0, 3);
+      gl.disableVertexAttribArray(ah);
+    }
     gl.useProgram(this.pt);
     gl.uniform1f(gl.getUniformLocation(this.pt, "uF"), this.f);
     gl.uniform1f(gl.getUniformLocation(this.pt, "uAsp"), asp);
@@ -130,6 +161,7 @@
   /* Expose pure function for Node testing. */
   if (typeof module !== "undefined" && module.exports) {
     module.exports.skyColor = skyColor;
+    module.exports.heatLevel = heatLevel;
     module.exports.SKY_STOPS = SKY_STOPS;
   }
 })(typeof self !== "undefined" ? self : this);

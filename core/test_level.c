@@ -122,7 +122,19 @@ static void test_sling_quality(void)
     CHECK(lv_moon_ring(LV_MOON_RING_SPAN, &rx, &ry) == 1);
     CHECK(fabsf(lv_moon_alt(rx, ry, LV_MOON_Z + LV_MOON_RING_SPAN) - LV_MOON_RING_ALT) < 0.5f);
     CHECK(rx < LV_MOON_LATERAL);
-    CHECK(lv_moon_ring(LV_MOON_RING_SPAN + 1.0f, &rx, &ry) == 0);
+    CHECK(lv_moon_ring(LV_MOON_RING_SPAN + 1.0f, &rx, &ry) == 1);
+    CHECK(lv_moon_ring(LV_MOON_ZONE + 1.0f, &rx, &ry) == 0);
+    /* The path rejoins the official route (x = 0) at both zone edges, without jumps. */
+    CHECK(lv_moon_ring(-LV_MOON_ZONE, &rx, &ry) == 1 && fabsf(rx) < 0.5f);
+    CHECK(lv_moon_ring(LV_MOON_ZONE, &rx, &ry) == 1 && fabsf(rx) < 0.5f);
+    {
+        float px0 = 0.0f; int first = 1;
+        for (float u = -LV_MOON_ZONE; u <= LV_MOON_ZONE; u += 25.0f) {
+            lv_moon_ring(u, &rx, &ry);
+            if (!first) CHECK(fabsf(rx - px0) < 60.0f);
+            px0 = rx; first = 0;
+        }
+    }
     /* The route axis does not hit the Moon, and the ring path is reachable. */
     CHECK(lv_moon_alt(0.0f, 0.0f, LV_MOON_Z) > LV_SLING_ALT_BEST);
 }

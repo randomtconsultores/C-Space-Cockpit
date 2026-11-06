@@ -89,9 +89,18 @@ float lv_moon_alt(float px, float py, float pz)
 int lv_moon_ring(float u, float *x, float *y)
 {
     float r = LV_MOON_RADIUS + LV_MOON_RING_ALT;
-    if (u < -LV_MOON_RING_SPAN || u > LV_MOON_RING_SPAN) return 0;
-    *x = LV_MOON_CX - sqrtf(r * r - u * u);
+    float au = u < 0.0f ? -u : u;
+    if (au > LV_MOON_ZONE) return 0;
     *y = LV_MOON_CY;
+    if (au <= LV_MOON_RING_SPAN) {
+        *x = LV_MOON_CX - sqrtf(r * r - u * u);
+    } else {
+        /* Blend from the end of the circle back to the official route (x = 0) at the zone edge. */
+        float xe = LV_MOON_CX - sqrtf(r * r - LV_MOON_RING_SPAN * LV_MOON_RING_SPAN);
+        float k = (au - LV_MOON_RING_SPAN) / (LV_MOON_ZONE - LV_MOON_RING_SPAN);
+        k = k * k * (3.0f - 2.0f * k);
+        *x = xe * (1.0f - k);
+    }
     return 1;
 }
 

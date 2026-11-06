@@ -305,6 +305,14 @@ Settings.useStorage(null);
   Keymap.useStorage(null); Keymap.load(); Input.setKeymap(Keymap);
 })();
 
+// --- heatLevel: flame glow only in the orange/red stage ---
+(function () {
+  var h = require("./render_gl.js").heatLevel;
+  assert(h(1.0) === 0 && h(0.0) === 0, "heat zero on ground and in space");
+  assert(h(0.28) > 0.9, "heat peak near orange/red stage: " + h(0.28));
+  for (var d = 0; d <= 1.0001; d += 0.01) assert(h(d) >= 0 && h(d) <= 1, "heat range");
+})();
+
 // --- skyColor: gradient from density to RGB (pure, Node-testable) ---
 (function () {
   var sky = Renderer.skyColor;

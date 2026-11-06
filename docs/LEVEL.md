@@ -31,10 +31,10 @@ generator_version is 4. Checkpoint validates the version and rejects older versi
 
 The C core (`core/scene.c`, `core/scene.h`) builds the view-space scene from `Flight` state:
 
-- **Scene colors**: `SC_ROCK=0`, `SC_GUIDE=1`, `SC_CONTACT=2`, `SC_LASER=3`, `SC_PLANET=4`, `SC_EARTH=5`, `SC_MOON=6`.
-- **Earth**: wireframe sphere (9 parallels x 16 meridians + simple continent outline) drawn below and slightly ahead of the ship during ascent (`pz < LV_ATMO_END`). Radius shrinks linearly from 600 at `pz=0` to 0 at `pz=LV_ATMO_END`. Rotated around X by `tilt_angle` so the horizon reflects the guided ascent angle. Colour `SC_EARTH` (blue-green).
+- **Scene colors**: `SC_ROCK=0`, `SC_GUIDE=1`, `SC_CONTACT=2`, `SC_LASER=3`, `SC_PLANET=4`, `SC_EARTH=5`, `SC_MOON=6`, `SC_PATH=7`.
+- **Earth**: no longer drawn (removed on the Director's request; the ascent shows only the sky). The route gates are not drawn during the ascent nor inside the lunar zone.
 - **Moon**: wireframe sphere fixed in the world (parallels, meridians, craters, back-face culled), drawn from the end of the atmosphere until just after the zone; it must be circled, not followed.
-- **Guide rings**: 10 thin rings (`SC_GUIDE`) along the lunar reference trajectory, only ahead of the ship, fading with distance. Inside the lunar zone only.
+- **Moon path**: rings in a distinct magenta colour (`SC_PATH=7`) every 200 units over the whole lunar zone, two radii (60, 30). The path is the circle at altitude 250 for |u| <= 1500 and blends smoothly back to the official route (x = 0) at the zone edges, so there are no leftover rings pointing away from the route. The Moon is drawn from the start of the flight so it is already there, small and far, during the ascent.
 - **Stars and dust**: hidden when atmospheric density `d > 0.95`; brightness fades linearly as `d` drops (`fade = 1 - d`).
 - **Segment budget**: `SCENE_MAX_SEGS = 4096`; `add_seg` stops drawing when full. Earth, Moon and guide rings only appear outside the belt, so the 96-rocha belt always fits.
 
@@ -61,3 +61,6 @@ Story text (`web/story.js`, pure, Node-testable):
 - Portuguese (pt-PT) with accents: platform, ascent, tilt warning, atmo exit, transit, moon guide, moon warn, sling GOOD/OK/MISS.
 
 The browser shell (`web/cockpit.js`) shows event text (via `CockpitStory.textForEvent`) for 4 seconds as a temporary on-screen message.
+
+
+- **Heat of atmospheric exit**: full-screen additive flame glow at the screen edges (render_gl.js `heatLevel(d)`, peak in the orange/red stage, zero on the ground and in space) plus extra vibration.

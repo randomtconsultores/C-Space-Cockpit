@@ -74,61 +74,6 @@ static void draw_ring(Scene *s, const View *v, float cx, float cy, float cz, flo
     (void)first;
 }
 
-static void draw_earth(Scene *s, const View *v, const Flight *f)
-{
-    if (f->pz >= LV_ATMO_END) return;
-    float earth_r = 600.0f * (1.0f - f->pz / LV_ATMO_END);
-    if (earth_r < 30.0f) return;
-    float tilt = f->tilt_angle;
-    float ct = cosf(tilt), st = sinf(tilt);
-    float ey = -earth_r * 0.7f;
-    float ez = f->pz + 100.0f;
-    /* Paralelos */
-    for (int i = 1; i < 10; i++) {
-        float lat = -1.5707963f + 3.1415926f * (float)i / 9.0f;
-        float r = earth_r * cosf(lat), yc = earth_r * sinf(lat);
-        float prev[3] = {0,0,0}, first[3] = {0,0,0};
-        for (int j = 0; j <= 16; j++) {
-            float lon = 6.2831853f * (float)j / 16.0f;
-            float x = r * cosf(lon), z = r * sinf(lon);
-            float y2 = yc * ct - z * st, z2 = yc * st + z * ct;
-            float cur[3];
-            to_view(v, x, ey + y2, ez + z2, cur, 1);
-            if (j == 0) memcpy(first, cur, sizeof cur); else add_seg(s, prev, cur, SC_EARTH);
-            memcpy(prev, cur, sizeof cur);
-        }
-        add_seg(s, prev, first, SC_EARTH);
-    }
-    /* Meridianos */
-    for (int j = 0; j < 12; j++) {
-        float lon = 6.2831853f * (float)j / 12.0f;
-        float prev[3] = {0,0,0}, first[3] = {0,0,0};
-        for (int i = 0; i <= 10; i++) {
-            float lat = -1.5707963f + 3.1415926f * (float)i / 10.0f;
-            float r = earth_r * cosf(lat), yc = earth_r * sinf(lat);
-            float x = r * cosf(lon), z = r * sinf(lon);
-            float y2 = yc * ct - z * st, z2 = yc * st + z * ct;
-            float cur[3];
-            to_view(v, x, ey + y2, ez + z2, cur, 1);
-            if (i == 0) memcpy(first, cur, sizeof cur); else add_seg(s, prev, cur, SC_EARTH);
-            memcpy(prev, cur, sizeof cur);
-        }
-        add_seg(s, prev, first, SC_EARTH);
-    }
-    /* Contorno de continentes simples (poucas linhas perto do equador) */
-    {
-        float c[6][3];
-        for (int k = 0; k < 6; k++) {
-            float a = 6.2831853f * (float)k / 6.0f;
-            float r = earth_r * (0.85f + 0.10f * (float)(k % 3));
-            float x = r * cosf(a), z = r * sinf(a);
-            float y2 = 0.0f * ct - z * st, z2 = 0.0f * st + z * ct;
-            to_view(v, x, ey + y2, ez + z2, c[k], 1);
-        }
-        for (int k = 0; k < 6; k++) add_seg(s, c[k], c[(k + 1) % 6], SC_EARTH);
-    }
-}
-
 /* The Moon is a giant wireframe sphere fixed in the world (see lv_moon_center).
    Only the hemisphere facing the ship is drawn. It is visible from the end of
    the atmosphere until the ship has passed it. */
@@ -164,7 +109,7 @@ static void moon_point(const float c[3], float r, float lat, float lon, float ou
 
 static void draw_moon(Scene *s, const View *v, const Flight *f)
 {
-    if (f->pz < LV_ATMO_END || f->pz > LV_MOON_Z + LV_MOON_RADIUS + 400.0f) return;
+    if (f->pz > LV_MOON_Z + LV_MOON_RADIUS + 400.0f) return;
     float c[3]; lv_moon_center(&c[0], &c[1], &c[2]);
     const float r = LV_MOON_RADIUS;
     const float pi = 3.1415926f;
@@ -208,16 +153,17 @@ static void draw_moon(Scene *s, const View *v, const Flight *f)
    ship low over the Moon for the whole pass. */
 static void draw_guide_rings(Scene *s, const View *v, const Flight *f)
 {
-    if (!lv_moon_in_zone(f->pz)) return;
-    const int n_rings = 10;
-    for (int i = 0; i < n_rings; i++) {
-        float u = -LV_MOON_RING_SPAN + 2.0f * LV_MOON_RING_SPAN * (float)i / (float)(n_rings - 1);
-        float z = LV_MOON_Z + u, lx, ly;
+    if (!lv_moon_in_zone(f->pz + 1500.0f) && !lv_moon_in_zone(f->pz)) return;
+    /* One ring every 200 units along the whole guide path (SC_PATH colour). */
+    const float step = 200.0f;
+    float u0 = ceilf((f->pz - LV_MOON_Z) / step) * step;
+    for (int i = 0; i < 8; i++) {
+        float u = u0 + step * (float)i, lx, ly;
         if (!lv_moon_ring(u, &lx, &ly)) continue;
-        float ahead = z - f->pz;
+        float ahead = LV_MOON_Z + u - f->pz;
         if (ahead <= 0.0f || ahead > 1500.0f) continue;
-        draw_ring(s, v, lx, ly, z, 45.0f, 2, 12, SC_GUIDE);
-        draw_ring(s, v, lx, ly, z, 22.0f, 2, 12, SC_GUIDE);
+        draw_ring(s, v, lx, ly, LV_MOON_Z + u, 60.0f, 2, 14, SC_PATH);
+        draw_ring(s, v, lx, ly, LV_MOON_Z + u, 30.0f, 2, 14, SC_PATH);
     }
 }
 
@@ -269,6 +215,8 @@ void scene_build(const Flight *f, Scene *s)
     for (int g = 0; g < 7; g++) {
         float z = z0 + 500.0f * (float)g;
         if (z > f->route.length) break;
+        /* No gates during the ascent, and none in the lunar zone (the Moon path replaces them). */
+        if (z < LV_ATMO_END || lv_moon_in_zone(z)) continue;
         draw_ring(s, &v, 0, 0, z, FL_CORRIDOR, 2, 8, SC_GUIDE);
     }
     /* destination planet */
@@ -278,8 +226,6 @@ void scene_build(const Flight *f, Scene *s)
         draw_ring(s, &v, 0, 0, pz, 450.0f, 1, 28, SC_PLANET);
         draw_ring(s, &v, 0, 0, pz, 450.0f, 0, 28, SC_PLANET);
     }
-    /* Earth during ascent */
-    draw_earth(s, &v, f);
     /* Moon and guide rings in the lunar zone */
     draw_moon(s, &v, f);
     draw_guide_rings(s, &v, f);

@@ -37,7 +37,7 @@ struct Flight;
 #define LV_SLING_ALT_BEST 200.0f   /* altitude over the surface at or below which quality is 1 */
 #define LV_SLING_ALT_MAX  900.0f   /* altitude at or above which quality is 0 */
 #define LV_SLING_BAND_SECONDS 20.0f /* fuel credit is spread over this many seconds at quality 1 */
-#define LV_MOON_RING_SPAN 1500.0f  /* guide rings cover z offsets within +-this from the Moon centre */
+#define LV_MOON_RING_SPAN 1500.0f  /* the circular part of the guide path covers z offsets within +-this; it blends to x=0 at the zone edges */
 #define LV_MOON_RING_ALT  250.0f   /* altitude over the surface of the guide ring path */
 #define LV_SLING_SPEED_RATIO 0.25f /* speed bonus up to +25% of max_speed */
 #define LV_SLING_FUEL     50.0f    /* fuel credit */
@@ -68,7 +68,7 @@ float lv_max_speed_factor(float z); /* max allowed speed fraction in atmosphere 
 int lv_moon_in_zone(float z);   /* 1 if z is inside the lunar zone */
 void lv_moon_center(float *x, float *y, float *z);   /* Moon centre in world space */
 float lv_moon_alt(float px, float py, float pz);   /* altitude over the Moon surface (negative = inside) */
-int lv_moon_ring(float u, float *x, float *y);   /* guide path (x,y) at z offset u from the Moon centre; 0 outside the span */
+int lv_moon_ring(float u, float *x, float *y);   /* guide path (x,y) at z offset u from the Moon centre; 0 outside the lunar zone */
 float lv_moon_collision_damage(const struct Flight *f);         /* hull damage if hitting Moon surface */
 float lv_sling_quality(float alt);   /* quality 0..1 from altitude over the Moon surface */
 float lv_min_fuel_margin(float fuel_max);
