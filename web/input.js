@@ -1,6 +1,7 @@
-/* Teclado: mapeia event.code para acao (ids espelham enum FlAction de core/flight.h).
-   O mapa de teclas vive em CockpitKeymap; este modulo gere o estado de teclas
-   premidas (ate 2 teclas por acao) e reporta pressionar/soltar via callback. */
+/* Keyboard: maps event.code to an action (ids mirror enum FlAction of
+   core/flight.h). The keymap lives in CockpitKeymap; this module tracks the
+   held-key state (up to 2 keys per action) and reports press/release via
+   callback. */
 (function (root, factory) {
   if (typeof module === "object" && module.exports) module.exports = factory();
   else root.CockpitInput = factory();
@@ -22,7 +23,7 @@
     return km ? km.actionForCode(code) : -1;
   }
 
-  /* Tecla premida. Ignora repetições (tecla já física pressionada). */
+  /* Key pressed. Ignores repeats (key already physically held down). */
   function keydown(code, repeat) {
     if (downCodes[code]) return;
     var a = actionForCode(code);
@@ -31,7 +32,7 @@
     if (downCount[a]++ === 0 && onPress) onPress(a, true);
   }
 
-  /* Tecla largada. Solta a ação só quando todas as suas teclas estão soltas. */
+  /* Key released. Releases the action only when all its keys are released. */
   function keyup(code) {
     if (!downCodes[code]) return;
     delete downCodes[code];

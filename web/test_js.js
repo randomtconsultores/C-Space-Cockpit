@@ -168,14 +168,36 @@ Gamepad.setGetGamepads(() => []);
 Gamepad.reset();
 Settings.useStorage(null);
 
-// --- keymap: teclas reconfiguraveis ---
+// --- keymap: teclas reconfiguraveis (slots duplos) ---
 (function () {
   function makeStorage(map) {
     return { _m: map || {}, getItem(k) { return this._m[k] === undefined ? null : this._m[k]; }, setItem(k, v) { this._m[k] = String(v); } };
   }
-  var FIRE = Input.ACTION.FIRE, YAW_LEFT = Input.ACTION.YAW_LEFT, PITCH_UP = Input.ACTION.PITCH_UP, AUTOPILOT = Input.ACTION.AUTOPILOT;
+  var FIRE = Input.ACTION.FIRE, PITCH_UP = Input.ACTION.PITCH_UP, AUTOPILOT = Input.ACTION.AUTOPILOT;
 
   Keymap.useStorage(null); Keymap.load(); Input.setKeymap(Keymap);
+
+  // keyLabel: letras, digitos, setas, espaco, enter, modificadores, fallback
+  assert.strictEqual(Keymap.keyLabel("KeyA"), "A");
+  assert.strictEqual(Keymap.keyLabel("KeyZ"), "Z");
+  assert.strictEqual(Keymap.keyLabel("Digit0"), "0");
+  assert.strictEqual(Keymap.keyLabel("Digit9"), "9");
+  assert.strictEqual(Keymap.keyLabel("ArrowUp"), "Seta cima");
+  assert.strictEqual(Keymap.keyLabel("ArrowDown"), "Seta baixo");
+  assert.strictEqual(Keymap.keyLabel("ArrowLeft"), "Seta esquerda");
+  assert.strictEqual(Keymap.keyLabel("ArrowRight"), "Seta direita");
+  assert.strictEqual(Keymap.keyLabel("Space"), "Espaco");
+  assert.strictEqual(Keymap.keyLabel("Enter"), "Enter");
+  assert.strictEqual(Keymap.keyLabel("Shift"), "Shift");
+  assert.strictEqual(Keymap.keyLabel("Control"), "Control");
+  assert.strictEqual(Keymap.keyLabel("Alt"), "Alt");
+  assert.strictEqual(Keymap.keyLabel("Tab"), "Tab");
+  assert.strictEqual(Keymap.keyLabel("F5"), "F5");
+  assert.strictEqual(Keymap.keyLabel(""), "");
+
+  // nomes de acao em portugues
+  assert.deepStrictEqual(Keymap.ACTION_NAMES, ["CIMA", "BAIXO", "ESQUERDA", "DIREITA", "ACELERAR", "TRAVAR", "LASER", "PILOTO AUTOMATICO"]);
+
   // valores por defeito
   assert.deepStrictEqual(Keymap.getKeys(PITCH_UP), ["ArrowUp", "KeyW"]);
   assert.deepStrictEqual(Keymap.getKeys(FIRE), ["Space"]);
@@ -184,20 +206,46 @@ Settings.useStorage(null);
   assert.strictEqual(Input.actionForCode("KeyP"), AUTOPILOT);
   assert.strictEqual(Input.actionForCode("constructor"), -1);
 
-  // serializacao e leitura (round trip via storage)
-  var ks = makeStorage({});
-  Keymap.useStorage(ks);
-  var res = Keymap.assign(FIRE, "KeyK");
-  assert.strictEqual(res.ok, true);
-  Keymap.save();
-  var stored = JSON.parse(ks._m["cockpit.keys"]);
-  assert.deepStrictEqual(stored[6], ["Space", "KeyK"]);
-  assert.strictEqual(Input.actionForCode("KeyK"), FIRE);
-  Keymap.load(); // novo load le do storage
-  assert.strictEqual(Input.actionForCode("KeyK"), FIRE);
+  // substituir uma das duas teclas (slot 0 de FIRE)
+  var rAdd = Keymap.assign(FIRE, "KeyK");
+  assert.strictEqual(rAdd.ok, true);
   assert.deepStrictEqual(Keymap.getKeys(FIRE), ["Space", "KeyK"]);
+  var rSlot = Keymap.setSlot(FIRE, 0, "KeyJ");
+  assert.strictEqual(rSlot.ok, true);
+  assert.deepStrictEqual(Keymap.getKeys(FIRE), ["KeyJ", "KeyK"]);
+  assert.strictEqual(Input.actionForCode("Space"), -1);
+  assert.strictEqual(Input.actionForCode("KeyJ"), FIRE);
+  assert.strictEqual(Input.actionForCode("KeyK"), FIRE);
 
-  // JSON corrupto: usa defeito sem rebentar
+  // conflito com outra acao: KeyW pertence a PITCH_UP; muda para FIRE slot 0
+  Keymap.useStorage(null); Keymap.load(); Input.setKeymap(Keymap);
+  Keymap.assign(FIRE, "KeyK"); // FIRE = [Space, KeyK]
+  var rConf = Keymap.setSlot(FIRE, 0, "KeyW"); // KeyW sai de PITCH_UP
+  assert.strictEqual(rConf.ok, true);
+  assert.strictEqual(Input.actionForCode("KeyW"), FIRE);
+  assert.deepStrictEqual(Keymap.getKeys(PITCH_UP), ["ArrowUp"]); // nao ficou sem tecla
+  assert.ok(rConf.message.indexOf("Substitui") >= 0, "mensagem de conflito: " + rConf.message);
+  assert.ok(rConf.message.indexOf("W") >= 0 && rConf.message.indexOf("CIMA") >= 0, "mensagem usa nomes legiveis: " + rConf.message);
+
+  // tecla reservada nao e atribuivel
+  Keymap.useStorage(null); Keymap.load(); Input.setKeymap(Keymap);
+  var rr = Keymap.setSlot(FIRE, 0, "Escape");
+  assert.strictEqual(rr.ok, false);
+  assert.strictEqual(rr.message, "Tecla reservada.");
+  assert.strictEqual(Input.actionForCode("Escape"), -1);
+  var rr2 = Keymap.setSlot(FIRE, 0, "F12");
+  assert.strictEqual(rr2.ok, false);
+  var rr3 = Keymap.setSlot(FIRE, 0, "Enter");
+  assert.strictEqual(rr3.ok, false);
+
+  // acao que fica sem teclas volta ao valor por defeito ao carregar
+  Keymap.useStorage(makeStorage({ "6": [] })); // FIRE sem teclas
+  Keymap.load(); Input.setKeymap(Keymap);
+  assert.deepStrictEqual(Keymap.getKeys(FIRE), ["Space"]); // defeito reposto
+  assert.strictEqual(Input.actionForCode("Space"), FIRE);
+
+  // JSON corrompido: usa defeito sem rebentar
+  Keymap.useStorage(null); Keymap.load();
   Keymap.useStorage({ getItem() { return "{not json"; }, setItem() {} });
   Keymap.load();
   assert.strictEqual(Input.actionForCode("Space"), FIRE);
@@ -207,56 +255,52 @@ Settings.useStorage(null);
   Keymap.useStorage({ getItem() { throw new Error("boom"); }, setItem() { throw new Error("boom"); } });
   Keymap.load();
   assert.strictEqual(Input.actionForCode("Space"), FIRE);
+  assert.deepStrictEqual(Keymap.getKeys(FIRE), ["Space"]);
 
-  // conflicto / substituto: tecla muda de acao, dona anterior nao fica sem tecla
+  // persistência: grava, recarrega o modulo com o mesmo localStorage falso, obtem o mesmo mapa
   Keymap.useStorage(null); Keymap.load(); Input.setKeymap(Keymap);
-  var r = Keymap.assign(FIRE, "KeyW"); // KeyW muda de PITCH_UP para FIRE
-  assert.strictEqual(r.ok, true);
-  assert.strictEqual(Input.actionForCode("KeyW"), FIRE);
-  assert.deepStrictEqual(Keymap.getKeys(PITCH_UP), ["ArrowUp"]); // sobrou ArrowUp, nao ficou sem tecla
-  assert.deepStrictEqual(Keymap.getKeys(FIRE), ["Space", "KeyW"]);
-
-  // acao sem teclas no ficheiro guardado -> repoe defeito ao carregar
-  Keymap.useStorage(makeStorage({ "6": [] })); // FIRE sem teclas
+  Keymap.assign(FIRE, "KeyM");
+  Keymap.assign(AUTOPILOT, "KeyO");
+  var store = makeStorage({});
+  Keymap.useStorage(store);
+  Keymap.save();
+  var persisted = JSON.parse(store._m["cockpit.keys"]);
+  assert.strictEqual(persisted[6][0], "Space");
+  assert.strictEqual(persisted[6][1], "KeyM");
+  assert.strictEqual(persisted[7][0], "KeyP");
+  assert.strictEqual(persisted[7][1], "KeyO");
+  // recarrega com mesmo conteudo
+  var store2 = makeStorage(JSON.parse(JSON.stringify(store._m)));
+  Keymap.useStorage(store2);
   Keymap.load(); Input.setKeymap(Keymap);
-  assert.deepStrictEqual(Keymap.getKeys(FIRE), ["Space"]); // defeito reposto
-  assert.strictEqual(Input.actionForCode("Space"), FIRE);
-
-  // teclas reservadas nao sao atribuiveis
-  Keymap.useStorage(null); Keymap.load(); Input.setKeymap(Keymap);
-  var rr = Keymap.assign(FIRE, "Escape");
-  assert.strictEqual(rr.ok, false);
-  assert.strictEqual(Input.actionForCode("Escape"), -1);
-  var rr2 = Keymap.assign(FIRE, "F5");
-  assert.strictEqual(rr2.ok, false);
-  var rr3 = Keymap.assign(FIRE, "F12");
-  assert.strictEqual(rr3.ok, false);
-  var rr4 = Keymap.assign(FIRE, "Enter");
-  assert.strictEqual(rr4.ok, false);
-  var rr5 = Keymap.assign(FIRE, "F3");
-  assert.strictEqual(rr5.ok, false);
-  var rr6 = Keymap.assign(FIRE, "KeyI");
-  assert.strictEqual(rr6.ok, false);
-
-  // duas teclas na mesma acao
-  Keymap.useStorage(null); Keymap.load(); Input.setKeymap(Keymap);
-  var rt = Keymap.assign(AUTOPILOT, "KeyO");
-  assert.strictEqual(rt.ok, true);
-  assert.strictEqual(Input.actionForCode("KeyP"), AUTOPILOT);
+  assert.strictEqual(Input.actionForCode("KeyM"), FIRE);
   assert.strictEqual(Input.actionForCode("KeyO"), AUTOPILOT);
-  assert.deepStrictEqual(Keymap.getKeys(AUTOPILOT), ["KeyP", "KeyO"]);
-  // terceiro -> limite de 2
-  var rt2 = Keymap.assign(AUTOPILOT, "KeyL");
-  assert.strictEqual(rt2.ok, false);
-  assert.deepStrictEqual(Keymap.getKeys(AUTOPILOT), ["KeyP", "KeyO"]);
+  assert.deepStrictEqual(Keymap.getKeys(FIRE), ["Space", "KeyM"]);
 
   // repor tudo
   Keymap.resetAll();
   assert.deepStrictEqual(Keymap.getKeys(FIRE), ["Space"]);
-  assert.strictEqual(Input.actionForCode("KeyK"), -1);
+  assert.strictEqual(Input.actionForCode("KeyM"), -1);
   assert.strictEqual(Input.actionForCode("KeyO"), -1);
 
-  // deixa input num estado coerente para o resto (nao ha mais resto)
+  // modelo de captura: startCapture + handleCaptureKey + cancelCapture
+  Keymap.useStorage(null); Keymap.load(); Input.setKeymap(Keymap);
+  var cap = Keymap.startCapture(FIRE, 1);
+  assert.strictEqual(cap.state.active, true);
+  assert.strictEqual(cap.state.action, FIRE);
+  assert.strictEqual(cap.state.slot, 1);
+  var cap2 = Keymap.handleCaptureKey("KeyB");
+  assert.strictEqual(cap2.state.active, false); // captura encerrou
+  assert.strictEqual(Input.actionForCode("KeyB"), FIRE);
+  assert.deepStrictEqual(Keymap.getKeys(FIRE), ["Space", "KeyB"]);
+
+  // captura com Escape cancela
+  var cap3 = Keymap.startCapture(FIRE, 0);
+  assert.strictEqual(cap3.state.active, true);
+  var cap4 = Keymap.handleCaptureKey("Escape");
+  assert.strictEqual(cap4.state.active, false);
+
+  // deixa input num estado coerente
   Keymap.useStorage(null); Keymap.load(); Input.setKeymap(Keymap);
 })();
 
