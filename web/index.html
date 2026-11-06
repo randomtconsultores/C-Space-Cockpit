@@ -18,9 +18,10 @@
     #pitch-text { position: absolute; top: .5rem; right: .8rem; font-size: .8rem; color: #6dff85; opacity: .75; pointer-events: none; text-shadow: 0 0 4px #020605; }
     #touch { display: flex; flex-wrap: wrap; gap: .4rem; justify-content: center; padding: .4rem; }
     #touch button { touch-action: none; min-width: 3.2rem; user-select: none; }
-    .keymap-row { display: flex; align-items: center; gap: .6rem; width: 22rem; justify-content: space-between; padding: .35rem .6rem; border: 1px solid #1d5a2b; background: #06120a; margin: .15rem 0; }
-    .keymap-row span { flex: 0 0 9rem; text-align: left; }
-    .keymap-row button { flex: 0 0 8rem; text-align: center; }
+    #keymap-list { display: flex; flex-direction: column; align-items: stretch; width: min(34rem, 94vw); max-height: 60vh; overflow-y: auto; }
+    .keymap-row { display: flex; align-items: center; gap: .5rem; box-sizing: border-box; width: 100%; padding: .3rem .6rem; border: 1px solid #1d5a2b; background: #06120a; margin: .15rem 0; }
+    .keymap-row span { flex: 1 1 auto; text-align: left; line-height: 1.2; }
+    .keymap-row button { flex: 0 0 6.5rem; box-sizing: border-box; padding: .4rem .3rem; min-height: 2.4rem; text-align: center; }
   </style>
 </head>
 <body>

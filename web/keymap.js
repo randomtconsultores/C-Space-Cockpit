@@ -14,7 +14,7 @@
   var ACTION_COUNT = 8;
   /* Nomes visiveis ao jogador (portugues). */
   var ACTION_NAMES = ["CIMA", "BAIXO", "ESQUERDA", "DIREITA",
-                      "ACELERAR", "TRAVAR", "LASER", "PILOTO AUTOMATICO"];
+                      "ACELERAR", "TRAVAR", "LASER", "PILOTO AUTOMÁTICO"];
   var DEFAULTS = {
     0: ["ArrowUp", "KeyW"],
     1: ["ArrowDown", "KeyS"],
@@ -48,7 +48,7 @@
       case "ArrowDown": return "Seta baixo";
       case "ArrowLeft": return "Seta esquerda";
       case "ArrowRight": return "Seta direita";
-      case "Space": return "Espaco";
+      case "Space": return "Espaço";
       case "Enter": return "Enter";
       case "Shift": return "Shift";
       case "Control": return "Control";
@@ -123,7 +123,7 @@
     var res = { ok: false, message: "" };
     if (action < 0 || action >= ACTION_COUNT) { res.message = "Acao invalida."; return res; }
     if (!validCode(code)) { res.message = "Tecla reservada."; return res; }
-    if (map[action].indexOf(code) >= 0) { res.ok = true; res.message = "Ja atribuida a esta acao."; return res; }
+    if (map[action].indexOf(code) >= 0) { res.ok = true; res.message = "Já atribuída a esta ação."; return res; }
     if (map[action].length >= MAX_KEYS) { res.message = "Limite de 2 teclas atingido."; return res; }
     removeCodeFrom(code, action);
     map[action].push(code);
@@ -136,14 +136,14 @@
   function setSlot(action, slot, code) {
     var res = { ok: false, message: "" };
     if (action < 0 || action >= ACTION_COUNT) { res.message = "Acao invalida."; return res; }
-    if (slot !== 0 && slot !== 1) { res.message = "Slot invalido."; return res; }
+    if (slot !== 0 && slot !== 1) { res.message = "Slot inválido."; return res; }
     if (!validCode(code)) { res.message = "Tecla reservada."; return res; }
     var keys = map[action];
-    if (keys.indexOf(code) >= 0) { res.ok = true; res.message = "Ja atribuida a esta acao."; return res; }
+    if (keys.indexOf(code) >= 0) { res.ok = true; res.message = "Já atribuída a esta ação."; return res; }
     var owner = actionForCode(code);
     if (owner >= 0 && owner !== action) {
       removeCodeFrom(code, action);
-      res.message = "Substitui " + keyLabel(code) + " da acao " + ACTION_NAMES[owner] + ".";
+      res.message = "Substitui " + keyLabel(code) + " da ação " + ACTION_NAMES[owner] + ".";
     }
     if (slot < keys.length) keys[slot] = code;
     else keys.push(code);

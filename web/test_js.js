@@ -186,7 +186,7 @@ Settings.useStorage(null);
   assert.strictEqual(Keymap.keyLabel("ArrowDown"), "Seta baixo");
   assert.strictEqual(Keymap.keyLabel("ArrowLeft"), "Seta esquerda");
   assert.strictEqual(Keymap.keyLabel("ArrowRight"), "Seta direita");
-  assert.strictEqual(Keymap.keyLabel("Space"), "Espaco");
+  assert.strictEqual(Keymap.keyLabel("Space"), "Espaço");
   assert.strictEqual(Keymap.keyLabel("Enter"), "Enter");
   assert.strictEqual(Keymap.keyLabel("Shift"), "Shift");
   assert.strictEqual(Keymap.keyLabel("Control"), "Control");
@@ -196,7 +196,7 @@ Settings.useStorage(null);
   assert.strictEqual(Keymap.keyLabel(""), "");
 
   // nomes de acao em portugues
-  assert.deepStrictEqual(Keymap.ACTION_NAMES, ["CIMA", "BAIXO", "ESQUERDA", "DIREITA", "ACELERAR", "TRAVAR", "LASER", "PILOTO AUTOMATICO"]);
+  assert.deepStrictEqual(Keymap.ACTION_NAMES, ["CIMA", "BAIXO", "ESQUERDA", "DIREITA", "ACELERAR", "TRAVAR", "LASER", "PILOTO AUTOMÁTICO"]);
 
   // valores por defeito
   assert.deepStrictEqual(Keymap.getKeys(PITCH_UP), ["ArrowUp", "KeyW"]);
