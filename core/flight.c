@@ -73,6 +73,8 @@ int flight_init(Flight *f, int ship_type, unsigned int seed)
     f->hull = s->hull_max;
     f->energy = s->energy_max;
     f->throttle = 0.0f;
+    f->yaw_rate = 0.0f;
+    f->pitch_rate = 0.0f;
     f->mode = FL_MODE_AUTOPILOT;
     return 0;
 }
@@ -153,12 +155,14 @@ void flight_tick(Flight *f)
 
     if (f->mode >= FL_MODE_ARRIVED) {           /* terminal states: coast to a stop */
         f->speed = approach(f->speed, 0.0f, s->accel * dt);
+        f->yaw_rate = 0.0f;
+        f->pitch_rate = 0.0f;
         f->pressed = 0;
         return;
     }
     unsigned int h = f->held;
     if (f->pressed & (1u << FL_AUTOPILOT_TOGGLE)) {
-        if (f->mode == FL_MODE_AUTOPILOT) f->mode = FL_MODE_MANUAL;
+        if (f->mode == FL_MODE_AUTOPILOT) { f->mode = FL_MODE_MANUAL; f->yaw_rate = 0.0f; f->pitch_rate = 0.0f; }
         else if (!in_belt(f) && clear_ahead(f)) { f->mode = FL_MODE_AUTOPILOT; push_event(f, FL_EV_AUTOPILOT_ON); }
         else push_event(f, FL_EV_AUTOPILOT_REFUSED);
     }
@@ -166,7 +170,7 @@ void flight_tick(Flight *f)
 
     /* Handover: the autopilot yields control before the belt. */
     if (f->mode == FL_MODE_AUTOPILOT && f->pz >= f->route.belt_start - 150.0f && f->pz < f->route.belt_end) {
-        f->mode = FL_MODE_MANUAL; push_event(f, FL_EV_MANUAL_REQUIRED);
+        f->mode = FL_MODE_MANUAL; f->yaw_rate = 0.0f; f->pitch_rate = 0.0f; push_event(f, FL_EV_MANUAL_REQUIRED);
     }
 
     if (f->mode == FL_MODE_AUTOPILOT) {
@@ -178,11 +182,27 @@ void flight_tick(Flight *f)
         f->pitch = approach(f->pitch, tp, s->turn_rate * dt);
         f->throttle = approach(f->throttle, cap, 0.5f * dt);
     } else {
-        float turn = s->turn_rate * dt;
-        if (h & (1u << FL_YAW_LEFT))   f->yaw -= turn;
-        if (h & (1u << FL_YAW_RIGHT))  f->yaw += turn;
-        if (h & (1u << FL_PITCH_UP))   f->pitch += turn;
-        if (h & (1u << FL_PITCH_DOWN)) f->pitch -= turn;
+        /* Inércia amortecida na rotação (M2): cada eixo aproxima-se de
+           +-turn_rate com turn_accel enquanto a tecla está premida e
+           amortece para 0 com turn_damp quando solta. Esquerda+direita
+           (ou cima+baixo) premidas ao mesmo tempo anulam-se. */
+        int yaw_in  = ((h & (1u << FL_YAW_RIGHT)) != 0) - ((h & (1u << FL_YAW_LEFT)) != 0);
+        int pitch_in = ((h & (1u << FL_PITCH_UP)) != 0) - ((h & (1u << FL_PITCH_DOWN)) != 0);
+        float accel_step = s->turn_accel * dt;
+        float damp_step  = s->turn_damp  * dt;
+        if (yaw_in > 0)      f->yaw_rate = approach(f->yaw_rate,  s->turn_rate, accel_step);
+        else if (yaw_in < 0) f->yaw_rate = approach(f->yaw_rate, -s->turn_rate, accel_step);
+        else                 f->yaw_rate = approach(f->yaw_rate, 0.0f, damp_step);
+        if (pitch_in > 0)    f->pitch_rate = approach(f->pitch_rate,  s->turn_rate, accel_step);
+        else if (pitch_in < 0) f->pitch_rate = approach(f->pitch_rate, -s->turn_rate, accel_step);
+        else                 f->pitch_rate = approach(f->pitch_rate, 0.0f, damp_step);
+
+        f->yaw   += f->yaw_rate   * dt;
+        f->pitch += f->pitch_rate * dt;
+        if (f->yaw   >  FL_MAX_ANGLE) { f->yaw   =  FL_MAX_ANGLE; f->yaw_rate   = 0.0f; }
+        if (f->yaw   < -FL_MAX_ANGLE) { f->yaw   = -FL_MAX_ANGLE; f->yaw_rate   = 0.0f; }
+        if (f->pitch >  FL_MAX_ANGLE) { f->pitch =  FL_MAX_ANGLE; f->pitch_rate = 0.0f; }
+        if (f->pitch < -FL_MAX_ANGLE) { f->pitch = -FL_MAX_ANGLE; f->pitch_rate = 0.0f; }
         if (h & (1u << FL_THROTTLE_UP))   f->throttle += 0.5f * dt;
         if (h & (1u << FL_THROTTLE_DOWN)) f->throttle -= 0.5f * dt;
     }
@@ -262,7 +282,7 @@ float flight_stat(const Flight *f, int id)
 unsigned int flight_checksum(const Flight *f)
 {
     unsigned int h = 2166136261u;
-    const float vals[] = { f->px, f->py, f->pz, f->yaw, f->pitch, f->speed, f->fuel, f->hull, f->energy };
+    const float vals[] = { f->px, f->py, f->pz, f->yaw, f->pitch, f->yaw_rate, f->pitch_rate, f->speed, f->fuel, f->hull, f->energy };
     for (unsigned i = 0; i < sizeof vals / sizeof vals[0]; i++) {
         unsigned int u; memcpy(&u, &vals[i], sizeof u);
         h = (h ^ u) * 16777619u;

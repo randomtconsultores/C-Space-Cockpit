@@ -15,6 +15,8 @@ typedef struct {
     float fuel_per_unit;  /* fuel burnt per distance unit travelled */
     float sensor_range;   /* distance at which contacts are shown */
     float cargo_slots;    /* reserved for the 'bag game' */
+    float turn_accel;     /* rad/s^2, placeholder balance (M2) */
+    float turn_damp;      /* rad/s^2, placeholder balance (M2) */
 } ShipSpec;
 const ShipSpec *ship_spec(int type);   /* NULL if type is invalid */
 #endif

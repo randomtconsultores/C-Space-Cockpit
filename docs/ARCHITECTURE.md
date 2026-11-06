@@ -61,3 +61,7 @@ Route.days is pilot time, Route.dilation converts it to Earth time (1.0 today). 
 ## Not verified
 
 WASM was built with Emscripten 6.0.13 and loaded in headless Chromium (SwiftShader). Real GPU, audio playback, vibration, touch and gamepad are not verified. Balance values in core/ship.c are placeholders.
+
+## Rotação (M2)
+
+A rotação manual usa inércia amortecida: `yaw_rate` e `pitch_rate` (rad/s) aproximam-se de `+-turn_rate` com `turn_accel` enquanto a tecla está premida e amortecem para 0 com `turn_damp` quando solta, usando `approach` existente. Os valores vivem em `ShipSpec.turn_accel` / `ShipSpec.turn_damp` (placeholders de balanço) e `turn_rate` continua a ser a velocidade angular máxima. Ao tocar `FL_MAX_ANGLE` a taxa desse eixo fica a 0 (sem ricochete). O piloto automático mantém a approach direta e, ao passar para manual, as taxas começam a 0. Em estados terminais (chegar, destruir, sem combustível) as taxas são colocadas a 0. Não é guardado no checkpoint (formato inalterado); veja `docs/CHECKPOINT.md`.

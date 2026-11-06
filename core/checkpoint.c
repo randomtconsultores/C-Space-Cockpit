@@ -90,7 +90,10 @@ int cp_restore(const Checkpoint *cp, Flight *out)
     /* flight_init ja gerou todas as rochas vivas; apagamos as que nao estao
        nos bits do DTO. laser_cd, laser_flash, shake, held, pressed, tick,
        lane_phase_x/y, rng, ev, alert_prev, destroyed_rocks ficam a zero
-       (flight_init ja fez memset a zero). */
+       (flight_init ja fez memset a zero). yaw_rate e pitch_rate nao fazem
+       parte do DTO (formato inalterado) e ficam a zero depois da restauracao. */
+    tmp.yaw_rate = 0.0f;
+    tmp.pitch_rate = 0.0f;
     for (int i = 0; i < tmp.rock_total; i++) {
         unsigned int bit = (i < 32) ? (1u << i) : (1u << (i - 32));
         unsigned int word = (i < 32) ? cp->rocks_alive_lo : cp->rocks_alive_hi;

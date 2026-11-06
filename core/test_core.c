@@ -9,15 +9,30 @@ static int failures, checks;
 static Flight F;
 static Scene S;
 
-static void pilot(Flight *f)   /* scripted pilot that follows the guaranteed lane */
+static void pilot(Flight *f)   /* scripted pilot que segue a faixa garantida, com antecipação */
 {
     float look = 400.0f;
     float tx = flight_lane_x(f, f->pz + look), ty = flight_lane_y(f, f->pz + look);
     float wy = atan2f(tx - f->px, look), wp = atan2f(ty - f->py, look);
-    flight_input(f, FL_YAW_LEFT,  f->yaw > wy + 0.02f);
-    flight_input(f, FL_YAW_RIGHT, f->yaw < wy - 0.02f);
-    flight_input(f, FL_PITCH_DOWN, f->pitch > wp + 0.02f);
-    flight_input(f, FL_PITCH_UP,   f->pitch < wp - 0.02f);
+    float ey = f->yaw - wy, ep = f->pitch - wp;
+    float margin = 0.03f;
+    /* espaço de travagem da taxa angular actual com a desaceleração da nave */
+    float stop_y = (f->yaw_rate * f->yaw_rate) / (2.0f * f->spec->turn_damp + 0.0001f);
+    float stop_p = (f->pitch_rate * f->pitch_rate) / (2.0f * f->spec->turn_damp + 0.0001f);
+    /* acelerar só enquanto o erro está fora da margem */
+    int accel_yaw_left  = ey >  margin && f->yaw_rate > -f->spec->turn_rate;
+    int accel_yaw_right = ey < -margin && f->yaw_rate <  f->spec->turn_rate;
+    int accel_pitch_down  = ep >  margin && f->pitch_rate > -f->spec->turn_rate;
+    int accel_pitch_up    = ep < -margin && f->pitch_rate <  f->spec->turn_rate;
+    /* largar com antecedência quando a inércia amortecida para dentro da margem */
+    int coast_yaw_left  = f->yaw_rate < 0.0f && ey - stop_y <= margin;
+    int coast_yaw_right = f->yaw_rate > 0.0f && ey + stop_y >= -margin;
+    int coast_pitch_down  = f->pitch_rate < 0.0f && ep - stop_p <= margin;
+    int coast_pitch_up    = f->pitch_rate > 0.0f && ep + stop_p >= -margin;
+    flight_input(f, FL_YAW_LEFT,  accel_yaw_left  && !coast_yaw_left);
+    flight_input(f, FL_YAW_RIGHT, accel_yaw_right && !coast_yaw_right);
+    flight_input(f, FL_PITCH_DOWN, accel_pitch_down  && !coast_pitch_down);
+    flight_input(f, FL_PITCH_UP,   accel_pitch_up    && !coast_pitch_up);
     flight_input(f, FL_THROTTLE_UP, f->throttle < 0.35f);
     flight_input(f, FL_THROTTLE_DOWN, f->throttle > 0.4f);
 }
@@ -190,11 +205,136 @@ static void test_stat_bounds(void)
     flight_input(&F, -1, 1); flight_input(&F, 99, 1);        /* ignored */
     CHECK(F.held == 0);
 }
+static void test_determinism_input(void)
+{
+    static Flight a, b;
+    flight_init(&a, SHIP_BALANCED, 7); flight_init(&b, SHIP_BALANCED, 7);
+    for (int i = 0; i < 1000; i++) {
+        int down = (i % 60) < 30;
+        flight_input(&a, FL_YAW_LEFT, down); flight_input(&b, FL_YAW_LEFT, down);
+        flight_input(&a, FL_PITCH_UP, down); flight_input(&b, FL_PITCH_UP, down);
+        flight_tick(&a); flight_tick(&b);
+    }
+    CHECK(flight_checksum(&a) == flight_checksum(&b));
+}
+static void test_inertia_press_release(void)
+{
+    flight_init(&F, SHIP_HEAVY, 1);
+    F.mode = FL_MODE_MANUAL;
+    for (int i = 0; i < 60; i++) { flight_input(&F, FL_YAW_LEFT, 1); flight_tick(&F); }
+    float yaw_at_release = F.yaw;
+    CHECK(F.yaw_rate < -0.1f);                    /* a nave está a girar à esquerda */
+    int stopped = 0;
+    for (int i = 0; i < 60 * 20 && !stopped; i++) {
+        flight_input(&F, FL_YAW_LEFT, 0);
+        flight_tick(&F);
+        if (F.yaw_rate == 0.0f) stopped = 1;
+    }
+    CHECK(stopped);                               /* pára em tempo finito */
+    CHECK(fabsf(F.yaw - yaw_at_release) > 1e-4f); /* continuou a rodar depois de largar */
+    CHECK(fabsf(F.yaw) <= FL_MAX_ANGLE);
+    CHECK(fabsf(F.yaw_rate) <= 1e-6f);
+}
+static void test_turn_rate_heavy_vs_light(void)
+{
+    /* pesada demora mais a atingir 95% de turn_rate */
+    int t_light = 0, t_heavy = 0;
+    {
+        Flight l; flight_init(&l, SHIP_LIGHT, 1); l.mode = FL_MODE_MANUAL;
+        for (int i = 0; i < 600 && t_light == 0; i++) {
+            flight_input(&l, FL_YAW_LEFT, 1); flight_tick(&l);
+            if (l.yaw_rate <= -0.95f * l.spec->turn_rate) t_light = i + 1;
+        }
+        CHECK(t_light > 0);
+    }
+    {
+        Flight h; flight_init(&h, SHIP_HEAVY, 1); h.mode = FL_MODE_MANUAL;
+        for (int i = 0; i < 600 && t_heavy == 0; i++) {
+            flight_input(&h, FL_YAW_LEFT, 1); flight_tick(&h);
+            if (h.yaw_rate <= -0.95f * h.spec->turn_rate) t_heavy = i + 1;
+        }
+        CHECK(t_heavy > 0);
+        CHECK(t_heavy > t_light);
+    }
+    /* mesma taxa angular inicial (0.40 rad/s): a pesada demora mais a parar */
+    Flight l, h;
+    flight_init(&l, SHIP_LIGHT, 1); flight_init(&h, SHIP_HEAVY, 1);
+    l.mode = h.mode = FL_MODE_MANUAL;
+    for (int i = 0; i < 4; i++) { flight_input(&l, FL_YAW_LEFT, 1); flight_tick(&l); }
+    for (int i = 0; i < 8; i++) { flight_input(&h, FL_YAW_LEFT, 1); flight_tick(&h); }
+    CHECK(fabsf(l.yaw_rate + 0.40f) < 1e-4f);
+    CHECK(fabsf(h.yaw_rate + 0.40f) < 1e-4f);
+    int sl = 0, sh = 0;
+    for (int i = 0; i < 100 && (sl == 0 || sh == 0); i++) {
+        flight_input(&l, FL_YAW_LEFT, 0); flight_input(&h, FL_YAW_LEFT, 0);
+        flight_tick(&l); flight_tick(&h);
+        if (sl == 0 && l.yaw_rate == 0.0f) sl = i + 1;
+        if (sh == 0 && h.yaw_rate == 0.0f) sh = i + 1;
+    }
+    CHECK(sl > 0 && sh > 0);
+    CHECK(sh > sl);
+}
+static void test_max_angle_limit(void)
+{
+    flight_init(&F, SHIP_LIGHT, 2);
+    F.mode = FL_MODE_MANUAL;
+    int hit = 0;
+    for (int i = 0; i < 60 * 60; i++) {
+        flight_input(&F, FL_YAW_LEFT, 1);
+        flight_tick(&F);
+        CHECK(fabsf(F.yaw) <= FL_MAX_ANGLE + 1e-6f);
+        if (fabsf(F.yaw) >= FL_MAX_ANGLE - 1e-6f) {
+            CHECK(F.yaw_rate == 0.0f);
+            hit = 1;
+        }
+    }
+    CHECK(hit);
+    for (int i = 0; i < 60; i++) flight_tick(&F);
+    CHECK(fabsf(F.yaw) <= FL_MAX_ANGLE + 1e-6f);
+    CHECK(F.yaw_rate == 0.0f);
+}
+static void test_simultaneous_inputs_cancel(void)
+{
+    flight_init(&F, SHIP_BALANCED, 3);
+    F.mode = FL_MODE_MANUAL;
+    for (int i = 0; i < 120; i++) {
+        flight_input(&F, FL_YAW_LEFT, 1);
+        flight_input(&F, FL_YAW_RIGHT, 1);
+        flight_input(&F, FL_PITCH_UP, 1);
+        flight_input(&F, FL_PITCH_DOWN, 1);
+        flight_tick(&F);
+    }
+    CHECK(F.yaw_rate == 0.0f);
+    CHECK(F.pitch_rate == 0.0f);
+    CHECK(F.yaw == 0.0f);
+    CHECK(F.pitch == 0.0f);
+}
+static void test_handover_zeroes_rates(void)
+{
+    flight_init(&F, SHIP_BALANCED, 5);
+    while (F.mode == FL_MODE_AUTOPILOT && F.tick < 60 * 400) flight_tick(&F);
+    CHECK(F.mode == FL_MODE_MANUAL);
+    CHECK(F.yaw_rate == 0.0f);
+    CHECK(F.pitch_rate == 0.0f);
+    flight_init(&F, SHIP_BALANCED, 5);
+    F.pz = 9000.0f; F.mode = FL_MODE_MANUAL;
+    F.yaw_rate = 0.5f; F.pitch_rate = -0.3f;
+    flight_input(&F, FL_AUTOPILOT_TOGGLE, 1); flight_tick(&F);
+    CHECK(F.mode == FL_MODE_AUTOPILOT);
+    flight_input(&F, FL_AUTOPILOT_TOGGLE, 0);
+    flight_input(&F, FL_AUTOPILOT_TOGGLE, 1); flight_tick(&F);
+    CHECK(F.mode == FL_MODE_MANUAL);
+    CHECK(F.yaw_rate == 0.0f);
+    CHECK(F.pitch_rate == 0.0f);
+}
 int main(void)
 {
-    test_rng(); test_ship(); test_determinism(); test_lane_clear(); test_handover();
+    test_rng(); test_ship(); test_determinism(); test_determinism_input();
+    test_lane_clear(); test_handover(); test_handover_zeroes_rates();
     test_autopilot_toggle(); test_lane_flight(); test_collision_and_laser(); test_destroyed();
-    test_fuel(); test_time_and_arrival(); test_corridor(); test_scene(); test_stat_bounds();
+    test_fuel(); test_time_and_arrival(); test_corridor(); test_inertia_press_release();
+    test_turn_rate_heavy_vs_light(); test_max_angle_limit(); test_simultaneous_inputs_cancel();
+    test_scene(); test_stat_bounds();
     printf("%d checks, %d failures\n", checks, failures);
     return failures ? 1 : 0;
 }

@@ -123,3 +123,4 @@ Never change version 1. To add fields or change semantics:
 
 - Rock hit points are not stored: a rock that was damaged but alive is restored with full hit points. Rock rotation angle is also not stored (visual only). Acceptable for M7 groundwork; revisit if damaged rocks must persist.
 - Only a single route is covered. Route/world state, post flags, mind copy and debt arrive with later versions of the DTO (bump CP_VERSION and add a migration; never edit version 1).
+- `yaw_rate` and `pitch_rate` (damped rotation, M2) are not part of the DTO: the format is unchanged and restore sets them to 0. They are re-derived from inputs after resume, so this does not affect correctness.

@@ -57,6 +57,7 @@ typedef struct {
     /* ship state (separate from spec) */
     float px, py, pz;
     float yaw, pitch;
+    float yaw_rate, pitch_rate;   /* rad/s, damped inertia (M2), init a 0 */
     float throttle, speed;
     float fuel, hull, energy;
     float laser_cd, laser_flash, shake;
