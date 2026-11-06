@@ -79,7 +79,7 @@ static void draw_ring(Scene *s, const View *v, float cx, float cy, float cz, flo
    the atmosphere until the ship has passed it. */
 #define MOON_PAR 11     /* parallels */
 #define MOON_MER 16     /* meridians */
-#define MOON_STEPS 20   /* segments per parallel or meridian */
+#define MOON_STEPS 40   /* segments per parallel or meridian */
 
 static int moon_front(const Flight *f, float mx, float my, float mz, float wx, float wy, float wz)
 {
@@ -92,8 +92,8 @@ static int moon_front(const Flight *f, float mx, float my, float mz, float wx, f
 static void moon_seg(Scene *s, const View *v, const Flight *f, const float c[3],
                      const float a[3], const float b[3])
 {
-    float mid[3] = { (a[0] + b[0]) * 0.5f, (a[1] + b[1]) * 0.5f, (a[2] + b[2]) * 0.5f };
-    if (!moon_front(f, c[0], c[1], c[2], mid[0], mid[1], mid[2])) return;
+    /* Both ends must face the ship: no chords across the disc at the limb. */
+    if (!moon_front(f, c[0], c[1], c[2], a[0], a[1], a[2]) || !moon_front(f, c[0], c[1], c[2], b[0], b[1], b[2])) return;
     float va[3], vb[3];
     to_view(v, a[0], a[1], a[2], va, 1);
     to_view(v, b[0], b[1], b[2], vb, 1);
@@ -102,9 +102,12 @@ static void moon_seg(Scene *s, const View *v, const Flight *f, const float c[3],
 
 static void moon_point(const float c[3], float r, float lat, float lon, float out[3])
 {
-    out[0] = c[0] + r * cosf(lat) * cosf(lon);
-    out[1] = c[1] + r * sinf(lat);
-    out[2] = c[2] + r * cosf(lat) * sinf(lon);
+    /* The axis is tilted so the equator is never seen edge-on as a straight line. */
+    const float ct = 0.9394f, st = 0.3429f;   /* tilt of 0.35 rad around z */
+    float x = cosf(lat) * cosf(lon), y = sinf(lat), z = cosf(lat) * sinf(lon);
+    out[0] = c[0] + r * (x * ct - y * st);
+    out[1] = c[1] + r * (x * st + y * ct);
+    out[2] = c[2] + r * z;
 }
 
 static void draw_moon(Scene *s, const View *v, const Flight *f)

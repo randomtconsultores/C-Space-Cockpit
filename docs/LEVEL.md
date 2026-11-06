@@ -64,3 +64,5 @@ The browser shell (`web/cockpit.js`) shows event text (via `CockpitStory.textFor
 
 
 - **Heat of atmospheric exit**: full-screen additive flame glow at the screen edges (render_gl.js `heatLevel(d)`, peak in the orange/red stage, zero on the ground and in space) plus extra vibration.
+- **Moon geometry fix**: 40 steps per parallel or meridian, a segment is drawn only if both ends face the ship (no chords across the disc), and the axis is tilted 0.35 rad so the equator is not a straight line seen edge-on.
+- **Launch feedback**: continuous engine sound (web/engine.js: filtered noise plus sub rumble driven by throttle, density and speed; ignition burst; hull rumble only in space; silent when out of fuel, paused or ended) and a flame glow at the bottom of the view plus vibration proportional to throttle (render_gl.js).

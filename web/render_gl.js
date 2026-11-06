@@ -66,14 +66,16 @@
   function heatLevel(d) { return smooth(0.62, 0.38, d) * smooth(0.02, 0.18, d); }
 
   var VS_HEAT = "attribute vec2 aP; varying vec2 vP; void main(){ vP=aP; gl_Position=vec4(aP,0.0,1.0); }";
-  var FS_HEAT = "precision mediump float; varying vec2 vP; uniform float uHeat; uniform float uTime; uniform float uAsp;\n" +
+  var FS_HEAT = "precision mediump float; varying vec2 vP; uniform float uHeat; uniform float uThrust; uniform float uTime; uniform float uAsp;\n" +
     "void main(){ vec2 q=vec2(vP.x*uAsp,vP.y); float r=length(q)/ (uAsp*0.9);\n" +
     "float a=atan(q.y,q.x);\n" +
     "float fl=0.55+0.25*sin(a*7.0+uTime*9.0)+0.2*sin(a*13.0-uTime*14.0)+0.1*sin(a*3.0+uTime*5.0);\n" +
     "float edge=smoothstep(0.6,1.25,r*(0.85+0.3*fl));\n" +
     "float k=edge*edge*uHeat;\n" +
     "vec3 c=mix(vec3(1.0,0.35,0.05),vec3(1.0,0.85,0.35),edge*fl);\n" +
-    "gl_FragColor=vec4(c*k*0.7,1.0); }";
+    "float eg=uThrust*smoothstep(-0.15,-1.0,vP.y)*(0.65+0.35*sin(uTime*37.0+vP.x*9.0)*sin(uTime*23.0));\n" +
+    "vec3 e=mix(vec3(1.0,0.3,0.05),vec3(1.0,0.8,0.4),smoothstep(-0.6,-1.0,vP.y));\n" +
+    "gl_FragColor=vec4(c*k*0.7+e*eg*0.55,1.0); }";
 
   function compile(gl, type, src) {
     var s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s);
@@ -108,16 +110,18 @@
     this.dpr = dpr; this.gl.viewport(0, 0, this.canvas.width, this.canvas.height);
   };
   /* seg: Float32Array view (stride 7), pts: Float32Array view (stride 4) */
-  Renderer.prototype.draw = function (seg, segCount, pts, ptCount, density, speed, time) {
+  Renderer.prototype.draw = function (seg, segCount, pts, ptCount, density, speed, time, throttle) {
     var gl = this.gl, asp = this.canvas.width / this.canvas.height;
     var sky = skyColor(density);
     gl.clearColor(sky[0], sky[1], sky[2], 1); gl.clear(gl.COLOR_BUFFER_BIT);
     gl.disable(gl.DEPTH_TEST); gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE);
 
     var heat = heatLevel(density);
-    var shake = density * speed * 0.015 + heat * speed * 0.004;
-    if (heat > 0.01) {
+    var thrust = (throttle > 0 ? throttle : 0) * (0.35 + 0.65 * density);
+    var shake = density * speed * 0.015 + heat * speed * 0.004 + thrust * 0.004;
+    if (heat > 0.01 || thrust > 0.01) {
       gl.useProgram(this.heat);
+      gl.uniform1f(gl.getUniformLocation(this.heat, "uThrust"), thrust);
       gl.uniform1f(gl.getUniformLocation(this.heat, "uHeat"), heat);
       gl.uniform1f(gl.getUniformLocation(this.heat, "uTime"), time || 0);
       gl.uniform1f(gl.getUniformLocation(this.heat, "uAsp"), asp);

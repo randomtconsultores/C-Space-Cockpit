@@ -102,12 +102,18 @@
       /* music: update music each frame */
       if (musicDirector) musicDirector.update(function (id) { return core ? core._cs_stat(id) : 0; }, now);  // music:
       handleEvents();
+      if (typeof CockpitEngine !== "undefined" && typeof CockpitSynth !== "undefined") {
+        if (core._cs_stat(CockpitHud.STAT.MODE) >= 2) CockpitEngine.silence(CockpitSynth);
+        else CockpitEngine.update(CockpitSynth, core._cs_stat(CockpitHud.STAT.THROTTLE), core._cs_stat(CockpitHud.STAT.ATMO_DENSITY),
+          core._cs_stat(CockpitHud.STAT.SPEED), core._cs_stat(CockpitHud.STAT.FUEL));
+      }
       if (msgTimer > 0) { msgTimer--; if (msgTimer === 0 && msgNode) msgNode.textContent = ""; }
       core._cs_scene_update();
       var sc = core._cs_const(0), pc = core._cs_const(1), cc = core._cs_const(2);
       var segN = core._cs_seg_count(), ptN = core._cs_pt_count(), conN = core._cs_con_count();
       renderer.draw(floats(core._cs_seg_ptr(), segN, sc), segN, floats(core._cs_pt_ptr(), ptN, pc), ptN,
-        core._cs_stat(CockpitHud.STAT.ATMO_DENSITY), core._cs_stat(CockpitHud.STAT.SPEED), now / 1000);
+        core._cs_stat(CockpitHud.STAT.ATMO_DENSITY), core._cs_stat(CockpitHud.STAT.SPEED), now / 1000,
+        core._cs_stat(CockpitHud.STAT.THROTTLE));
       var r = stage.getBoundingClientRect();
       CockpitHud.draw(hudCtx, r.width, r.height, function (id) { return core._cs_stat(id); },
         floats(core._cs_con_ptr(), conN, cc), conN, Math.floor(now / 350) % 2 === 0);
@@ -144,6 +150,7 @@
     paused = !paused; autoPaused = false;
     if (pauseNode) pauseNode.hidden = !paused;
     /* music: pause/resume music */
+    if (typeof CockpitEngine !== "undefined" && paused) CockpitEngine.silence(CockpitSynth);
     if (musicDirector) { if (paused) musicDirector.pause(); else musicDirector.resume(); }  // music:
     if (paused) releaseAll();
     else { last = performance.now(); accum = 0; fpsSamples = []; fpsSum = 0; lastDebug = 0; }
