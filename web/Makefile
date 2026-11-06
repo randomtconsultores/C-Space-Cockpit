@@ -4,7 +4,7 @@ CC ?= cc
 NODE ?= node
 PYTHON ?= python3
 OUT := web/build
-CORE := core/rng.c core/ship.c core/flight.c core/scene.c core/checkpoint.c core/route.c
+CORE := core/rng.c core/ship.c core/flight.c core/scene.c core/checkpoint.c core/route.c core/level.c
 SOUND_IDS := 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16
 SOUND_FILES := $(addprefix $(OUT)/sounds/,$(addsuffix .wav,$(SOUND_IDS)))
 SOUND_MANIFEST := $(OUT)/sounds/manifest.json
@@ -29,7 +29,8 @@ test-c:
 	@tmp=$$(mktemp -d) || exit 1; trap 'rm -rf "$$tmp"' EXIT HUP INT TERM; \
 	$(CC) -std=c11 -Wall -Wextra -Werror -O2 -fsanitize=address,undefined $(CORE) core/test_core.c -lm -o "$$tmp/core" && "$$tmp/core" && \
 	$(CC) -std=c11 -Wall -Wextra -Werror -O2 -fsanitize=address,undefined $(CORE) core/test_checkpoint.c -lm -o "$$tmp/checkpoint" && "$$tmp/checkpoint" && \
-	$(CC) -std=c11 -Wall -Wextra -Werror -O2 -fsanitize=address,undefined $(CORE) core/test_route.c -lm -o "$$tmp/route" && "$$tmp/route"
+	$(CC) -std=c11 -Wall -Wextra -Werror -O2 -fsanitize=address,undefined $(CORE) core/test_route.c -lm -o "$$tmp/route" && "$$tmp/route" && \
+	$(CC) -std=c11 -Wall -Wextra -Werror -O2 -fsanitize=address,undefined $(CORE) core/test_level.c -lm -o "$$tmp/level" && "$$tmp/level"
 test-js:
 	$(NODE) --check web/cockpit.js
 	$(NODE) web/test_js.js

@@ -9,6 +9,7 @@ int cp_validate(const Checkpoint *cp)
     if (cp == NULL) return CP_INVALID;
     if (cp->format_version != CP_VERSION) return CP_INVALID;
     if (cp->generator_version != FL_GENERATOR_VERSION) return CP_INVALID;
+    if (!isfinite(cp->tilt_angle) || cp->tilt_angle < 0.0f || cp->tilt_angle > 1.5707964f) return CP_INVALID;
 
     /* Obtemos route.length, spec e rock_total de uma Flight inicializada com
        os mesmos ship_type e route_seed, para nao hard-codar valores de rota. */
@@ -64,6 +65,7 @@ int cp_capture(const Flight *f, Checkpoint *out)
     out->mode = f->mode;
     out->px = f->px; out->py = f->py; out->pz = f->pz;
     out->yaw = f->yaw; out->pitch = f->pitch;
+    out->tilt_angle = f->tilt_angle;
     out->throttle = f->throttle; out->speed = f->speed;
     out->fuel = f->fuel; out->hull = f->hull; out->energy = f->energy;
 
@@ -90,6 +92,7 @@ int cp_restore(const Checkpoint *cp, Flight *out)
 
     tmp.px = cp->px; tmp.py = cp->py; tmp.pz = cp->pz;
     tmp.yaw = cp->yaw; tmp.pitch = cp->pitch;
+    tmp.tilt_angle = cp->tilt_angle;
     tmp.throttle = cp->throttle; tmp.speed = cp->speed;
     tmp.fuel = cp->fuel; tmp.hull = cp->hull; tmp.energy = cp->energy;
     tmp.mode = cp->mode;

@@ -42,7 +42,8 @@ const ID = {
   ALERT: STAT.ALERT,           // 17
   HULL: STAT.HULL,             // 6
   HULL_MAX: STAT.HULL_MAX,     // 7
-  ENERGY: STAT.ENERGY          // 8
+  ENERGY: STAT.ENERGY,         // 8
+  ALTITUDE: STAT.ALTITUDE
 };
 
 let failures = 0;
@@ -242,14 +243,29 @@ async function main() {
     log(ok ? "OK" : "FALHOU", "b. seleciona nave 1", reason);
     if (!ok) { await finish(browser, server); return; }
 
-    /* ---- step c: wait 3 s, read stats ---- */
+    /* ---- step c: the level starts on the pad in manual mode; hold the
+     * throttle (X) for 3 s and read stats ---- */
+    await page.keyboard.down("KeyX");
     await page.waitForTimeout(3000);
     const speed = await readStat(page, ID.SPEED);
     const progress = await readStat(page, ID.PROGRESS);
     const mode = await readStat(page, ID.MODE);
-    ok = speed > 0 && progress > 0 && mode === 0;
+    await page.keyboard.up("KeyX");
+    ok = speed > 0 && progress > 0 && mode === 1;
     reason = "speed=" + speed + " progress=" + progress + " mode=" + mode;
-    log(ok ? "OK" : "FALHOU", "c. apos 3s: SPEED>0 PROGRESS>0 MODE==0", reason);
+    log(ok ? "OK" : "FALHOU", "c. subida: apos 3s com acelerador SPEED>0 PROGRESS>0 MODE==1", reason);
+    if (!ok) { await finish(browser, server); return; }
+
+    /* ---- step c2: finish the ascent (fast ticks), then engage the autopilot ---- */
+    const THROTTLE_UP = 4;
+    const AUTOPILOT = 7;
+    await page.evaluate(([t]) => window.__cockpit._cs_input(t, 1), [THROTTLE_UP]);
+    const ascent = await runTicksUntil(page, 60 * 120, ID.ALTITUDE, 700);
+    await page.evaluate(([t]) => { window.__cockpit._cs_input(t, 1); window.__cockpit._cs_tick(); window.__cockpit._cs_input(t, 0); }, [AUTOPILOT]);
+    const modeAuto = await readStat(page, ID.MODE);
+    ok = modeAuto === 0;
+    reason = "ticks de subida=" + ascent.ticks + " mode=" + modeAuto;
+    log(ok ? "OK" : "FALHOU", "c2. fora da atmosfera: piloto automático ativo (MODE==0)", reason);
     if (!ok) { await finish(browser, server); return; }
 
     /* screenshot 2: voo em piloto automático (mode == 0) */

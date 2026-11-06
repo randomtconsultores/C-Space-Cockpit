@@ -15,6 +15,7 @@ typedef struct {
     int mode;               /* only FL_MODE_AUTOPILOT or FL_MODE_MANUAL */
     float px, py, pz;
     float yaw, pitch;
+    float tilt_angle;       /* ascent tilt angle (rad) */
     float throttle, speed;
     float fuel, hull, energy;
     unsigned int rocks_alive_lo; /* bit i = rock i alive, rocks 0..31 */

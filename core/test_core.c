@@ -1,5 +1,6 @@
 #include "flight.h"
 #include "scene.h"
+#include "level.h"
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -93,6 +94,7 @@ static void test_lane_clear(void)
 static void test_handover(void)
 {
     flight_init(&F, SHIP_BALANCED, 5);
+    F.mode = FL_MODE_AUTOPILOT;
     int warned = 0, manual_ev = 0, ticks = 0;
     while (F.mode == FL_MODE_AUTOPILOT && ticks++ < 60 * 400) {
         flight_tick(&F);
@@ -303,6 +305,8 @@ static void test_turn_rate_heavy_vs_light(void)
     Flight l, h;
     flight_init(&l, SHIP_LIGHT, 1); flight_init(&h, SHIP_HEAVY, 1);
     l.mode = h.mode = FL_MODE_MANUAL;
+    /* Move out of atmosphere so turn rate is not damped */
+    l.pz = LV_ATMO_END + 10.0f; h.pz = LV_ATMO_END + 10.0f;
     for (int i = 0; i < 4; i++) { flight_input(&l, FL_YAW_LEFT, 1); flight_tick(&l); }
     for (int i = 0; i < 8; i++) { flight_input(&h, FL_YAW_LEFT, 1); flight_tick(&h); }
     CHECK(fabsf(l.yaw_rate + 0.40f) < 1e-4f);

@@ -17,7 +17,7 @@
 #define FL_LANE_HALF      70.0f    /* lane half width outside the belt / at belt edges */
 #define FL_LANE_HALF_BELT 45.0f    /* lane half width at the centre of the belt */
 #define FL_LANE_TRANSITION 300.0f  /* transition distance at each belt edge */
-#define FL_GENERATOR_VERSION 2
+#define FL_GENERATOR_VERSION 3
 #define FL_TAMPER_COUNT   4        /* number of blockage walls in the belt */
 #define FL_TAMPER_RADIUS_CENTRAL_LO 26.0f
 #define FL_TAMPER_RADIUS_CENTRAL_HI 30.0f
@@ -40,7 +40,9 @@ enum FlAlert { FL_ALERT_NONE = 0, FL_ALERT_HAZARD_AHEAD = 1, FL_ALERT_MANUAL_REQ
 enum FlEvent { FL_EV_NONE = 0, FL_EV_FIRE, FL_EV_ROCK_BREAK, FL_EV_HIT, FL_EV_WARNING,
                FL_EV_MANUAL_REQUIRED, FL_EV_AUTOPILOT_ON, FL_EV_AUTOPILOT_REFUSED,
                FL_EV_LOW_FUEL, FL_EV_HULL_CRITICAL, FL_EV_ARRIVED, FL_EV_DESTROYED,
-               FL_EV_STRANDED, FL_EV_COUNT };
+               FL_EV_STRANDED, FL_EV_PHASE_ATMO_EXIT, FL_EV_PHASE_MOON,
+               FL_EV_SLING_GOOD, FL_EV_SLING_OK, FL_EV_SLING_MISS, FL_EV_TILT_WARNING,
+               FL_EV_COUNT };
 
 typedef struct {
     float length;       /* distance units */
@@ -52,7 +54,7 @@ typedef struct {
     unsigned int generator_version;
 } Route;
 
-typedef struct {
+typedef struct Rock {
     float x, y, z, r;
     float rot, spin;
     int   hp, alive;
@@ -60,7 +62,7 @@ typedef struct {
     unsigned int shape;
 } Rock;
 
-typedef struct {
+typedef struct Flight {
     const ShipSpec *spec;
     Route route;
     Rock  rocks[FL_MAX_ROCKS];
@@ -69,6 +71,7 @@ typedef struct {
     float px, py, pz;
     float yaw, pitch;
     float yaw_rate, pitch_rate;   /* rad/s, damped inertia (M2), init a 0 */
+    float tilt_angle;             /* radians, ascent tilt angle (M3) */
     float throttle, speed;
     float fuel, hull, energy;
     float laser_cd, laser_flash, shake;
@@ -97,7 +100,9 @@ enum FlStat {
     FS_SPEED, FS_SPEED_MAX, FS_THROTTLE, FS_FUEL, FS_FUEL_MAX, FS_FUEL_ROUTE_COST,
     FS_HULL, FS_HULL_MAX, FS_ENERGY, FS_ENERGY_MAX, FS_PROGRESS, FS_ETA_SECONDS,
     FS_PILOT_DAYS, FS_EARTH_DAYS, FS_ROUTE_DAYS, FS_DISTANCE_LEFT, FS_MODE, FS_ALERT,
-    FS_IN_BELT, FS_ROCKS_ALIVE, FS_SENSOR_RANGE, FS_SHAKE, FS_LASER_FLASH, FS_COUNT
+    FS_IN_BELT, FS_ROCKS_ALIVE, FS_SENSOR_RANGE, FS_SHAKE, FS_LASER_FLASH,
+    FS_PHASE, FS_ALTITUDE, FS_ATMO_DENSITY, FS_ASCENT_ANGLE, FS_SLING_OFFSET,
+    FS_SLING_QUALITY, FS_MOON_DISTANCE, FS_COUNT
 };
 float flight_stat(const Flight *f, int id);
 #endif

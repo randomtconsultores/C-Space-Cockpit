@@ -1,4 +1,8 @@
 #include "flight.h"
+#include "level.h"
+#ifndef M_PI_2
+#define M_PI_2 1.57079632679f
+#endif
 #include <math.h>
 #include <string.h>
 
@@ -174,7 +178,8 @@ int flight_init(Flight *f, int ship_type, unsigned int seed)
     f->throttle = 0.0f;
     f->yaw_rate = 0.0f;
     f->pitch_rate = 0.0f;
-    f->mode = FL_MODE_AUTOPILOT;
+    f->tilt_angle = (float)(M_PI_2);   /* vertical ascent at start */
+    f->mode = FL_MODE_MANUAL;
     return 0;
 }
 
@@ -246,6 +251,12 @@ void flight_tick(Flight *f)
 {
     const float dt = FL_STEP_SECONDS;
     const ShipSpec *s = f->spec;
+    const float d = lv_density(f->pz);
+    const float drag = lv_drag_factor(d);
+    const float turn_factor = lv_turn_factor(d);
+    const float fuel_factor = lv_fuel_factor(d);
+    const int phase = lv_phase(f);
+    const float pz_before = f->pz;
     f->tick++;
     if (f->laser_cd > 0.0f) f->laser_cd -= dt;
     if (f->laser_flash > 0.0f) f->laser_flash -= dt;
@@ -262,7 +273,7 @@ void flight_tick(Flight *f)
     unsigned int h = f->held;
     if (f->pressed & (1u << FL_AUTOPILOT_TOGGLE)) {
         if (f->mode == FL_MODE_AUTOPILOT) { f->mode = FL_MODE_MANUAL; f->yaw_rate = 0.0f; f->pitch_rate = 0.0f; }
-        else if (!in_belt(f) && clear_ahead(f)) { f->mode = FL_MODE_AUTOPILOT; push_event(f, FL_EV_AUTOPILOT_ON); }
+        else if (!in_belt(f) && clear_ahead(f) && f->pz >= LV_ATMO_END) { f->mode = FL_MODE_AUTOPILOT; push_event(f, FL_EV_AUTOPILOT_ON); }
         else push_event(f, FL_EV_AUTOPILOT_REFUSED);
     }
     f->pressed = 0;
@@ -287,8 +298,8 @@ void flight_tick(Flight *f)
            (ou cima+baixo) premidas ao mesmo tempo anulam-se. */
         int yaw_in  = ((h & (1u << FL_YAW_RIGHT)) != 0) - ((h & (1u << FL_YAW_LEFT)) != 0);
         int pitch_in = ((h & (1u << FL_PITCH_UP)) != 0) - ((h & (1u << FL_PITCH_DOWN)) != 0);
-        float accel_step = s->turn_accel * dt;
-        float damp_step  = s->turn_damp  * dt;
+        float accel_step = s->turn_accel * dt * turn_factor;
+        float damp_step  = s->turn_damp  * dt * turn_factor;
         if (yaw_in > 0)      f->yaw_rate = approach(f->yaw_rate,  s->turn_rate, accel_step);
         else if (yaw_in < 0) f->yaw_rate = approach(f->yaw_rate, -s->turn_rate, accel_step);
         else                 f->yaw_rate = approach(f->yaw_rate, 0.0f, damp_step);
@@ -296,8 +307,8 @@ void flight_tick(Flight *f)
         else if (pitch_in < 0) f->pitch_rate = approach(f->pitch_rate, -s->turn_rate, accel_step);
         else                 f->pitch_rate = approach(f->pitch_rate, 0.0f, damp_step);
 
-        f->yaw   += f->yaw_rate   * dt;
-        f->pitch += f->pitch_rate * dt;
+        f->yaw   += f->yaw_rate   * dt * turn_factor;
+        f->pitch += f->pitch_rate * dt * turn_factor;
         if (f->yaw   >  FL_MAX_ANGLE) { f->yaw   =  FL_MAX_ANGLE; f->yaw_rate   = 0.0f; }
         if (f->yaw   < -FL_MAX_ANGLE) { f->yaw   = -FL_MAX_ANGLE; f->yaw_rate   = 0.0f; }
         if (f->pitch >  FL_MAX_ANGLE) { f->pitch =  FL_MAX_ANGLE; f->pitch_rate = 0.0f; }
@@ -309,13 +320,26 @@ void flight_tick(Flight *f)
     f->pitch = clampf(f->pitch, -FL_MAX_ANGLE, FL_MAX_ANGLE);
     f->throttle = clampf(f->throttle, 0.0f, 1.0f);
 
-    float target = f->fuel > 0.0f ? f->throttle * s->max_speed : 0.0f;
-    f->speed = approach(f->speed, target, s->accel * dt);
+    /* Ascent tilt: guided gravity turn, modified by pitch input. */
+    if (phase == LV_ASCENT) {
+        float target = lv_tilt_profile(f->pz);
+        int pitch_in = ((h & (1u << FL_PITCH_UP)) != 0) - ((h & (1u << FL_PITCH_DOWN)) != 0);
+        if (pitch_in == 0) {
+            f->tilt_angle = approach(f->tilt_angle, target, s->turn_accel * dt * LV_TILT_AUTHORITY);
+        } else {
+            float tilt_rate = (pitch_in > 0) ? s->turn_rate * LV_TILT_AUTHORITY : -s->turn_rate * LV_TILT_AUTHORITY;
+            f->tilt_angle += tilt_rate * dt;
+            f->tilt_angle = clampf(f->tilt_angle, 0.0f, (float)(M_PI_2));
+        }
+    }
+
+    float target_speed = f->fuel > 0.0f ? f->throttle * s->max_speed * drag : 0.0f;
+    f->speed = approach(f->speed, target_speed, s->accel * dt);
     float cp = cosf(f->pitch);
     float dx = sinf(f->yaw) * cp, dy = sinf(f->pitch), dz = cosf(f->yaw) * cp;
     float step = f->speed * dt;
     f->px += dx * step; f->py += dy * step; f->pz += dz * step;
-    f->fuel = clampf(f->fuel - step * s->fuel_per_unit, 0.0f, s->fuel_max);
+    f->fuel = clampf(f->fuel - step * s->fuel_per_unit * fuel_factor, 0.0f, s->fuel_max);
 
     float rad = hypotf(f->px, f->py);                 /* soft corridor wall */
     if (rad > FL_CORRIDOR * 1.1f) { float k = FL_CORRIDOR * 1.1f / rad; f->px *= k; f->py *= k; }
@@ -344,6 +368,32 @@ void flight_tick(Flight *f)
         f->mode = FL_MODE_STRANDED; push_event(f, FL_EV_STRANDED); f->alert = f->alert_prev = 0; return;
     }
     update_alert(f);
+    /* Phase edges and one-shot effects are derived from the pz crossing in this
+       tick, so no state is needed (checkpoint safe, multiple Flights safe). */
+    {
+        const int phase_after = lv_phase(f);
+        if (phase != phase_after) {
+            if (phase_after == LV_TRANSIT && pz_before < LV_ATMO_END) {
+                push_event(f, FL_EV_PHASE_ATMO_EXIT);
+                if (fabsf(f->tilt_angle) > LV_TILT_WINDOW) {
+                    push_event(f, FL_EV_TILT_WARNING);
+                    f->fuel = clampf(f->fuel - LV_TILT_PENALTY, 0.0f, s->fuel_max);
+                }
+            } else if (phase_after == LV_MOON) push_event(f, FL_EV_PHASE_MOON);
+        }
+        /* Lunar slingshot: applied once when pz crosses LV_MOON_Z. */
+        if (pz_before < LV_MOON_Z && f->pz >= LV_MOON_Z) {
+            float lx, ly;
+            if (lv_moon_xy(f, f->pz, &lx, &ly)) {
+                float q = lv_sling_quality(hypotf(f->px - lx, f->py - ly));
+                f->speed *= (1.0f + LV_SLING_SPEED_RATIO * q);
+                f->fuel = clampf(f->fuel + LV_SLING_FUEL * q, 0.0f, s->fuel_max);
+                if (q >= 0.7f) push_event(f, FL_EV_SLING_GOOD);
+                else if (q >= 0.3f) push_event(f, FL_EV_SLING_OK);
+                else push_event(f, FL_EV_SLING_MISS);
+            }
+        }
+    }
 }
 
 float flight_stat(const Flight *f, int id)
@@ -374,6 +424,21 @@ float flight_stat(const Flight *f, int id)
     case FS_SENSOR_RANGE: return s->sensor_range;
     case FS_SHAKE: return f->shake > 0.0f ? f->shake : 0.0f;
     case FS_LASER_FLASH: return f->laser_flash > 0.0f ? 1.0f : 0.0f;
+    case FS_PHASE: return (float)lv_phase(f);
+    case FS_ALTITUDE: return f->pz < LV_ATMO_END ? f->pz : LV_ATMO_END;
+    case FS_ATMO_DENSITY: return lv_density(f->pz);
+    case FS_ASCENT_ANGLE: return f->tilt_angle;
+    case FS_SLING_OFFSET: {
+        float lx, ly;
+        if (lv_moon_xy(f, f->pz, &lx, &ly)) return hypotf(f->px - lx, f->py - ly);
+        return 0.0f;
+    }
+    case FS_SLING_QUALITY: {
+        float lx, ly;
+        if (lv_moon_xy(f, f->pz, &lx, &ly)) return lv_sling_quality(hypotf(f->px - lx, f->py - ly));
+        return 0.0f;
+    }
+    case FS_MOON_DISTANCE: return f->pz - LV_MOON_Z;
     default: return 0.0f;
     }
 }
@@ -381,7 +446,7 @@ float flight_stat(const Flight *f, int id)
 unsigned int flight_checksum(const Flight *f)
 {
     unsigned int h = 2166136261u;
-    const float vals[] = { f->px, f->py, f->pz, f->yaw, f->pitch, f->yaw_rate, f->pitch_rate, f->speed, f->fuel, f->hull, f->energy };
+    const float vals[] = { f->px, f->py, f->pz, f->yaw, f->pitch, f->yaw_rate, f->pitch_rate, f->tilt_angle, f->speed, f->fuel, f->hull, f->energy };
     for (unsigned i = 0; i < sizeof vals / sizeof vals[0]; i++) {
         unsigned int u; memcpy(&u, &vals[i], sizeof u);
         h = (h ^ u) * 16777619u;
