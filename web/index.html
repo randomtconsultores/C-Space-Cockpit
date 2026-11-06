@@ -15,6 +15,7 @@
     button { font: inherit; color: #6dff85; background: #06120a; border: 1px solid #1d5a2b; padding: .6rem 1rem; min-height: 2.75rem; cursor: pointer; }
     button:hover, button:focus-visible { border-color: #6dff85; outline: none; }
     #status { min-height: 1.2em; margin: .4rem; color: #ffb000; }
+    #pitch-text { position: absolute; top: .5rem; right: .8rem; font-size: .8rem; color: #6dff85; opacity: .75; pointer-events: none; text-shadow: 0 0 4px #020605; }
     #touch { display: flex; flex-wrap: wrap; gap: .4rem; justify-content: center; padding: .4rem; }
     #touch button { touch-action: none; min-width: 3.2rem; user-select: none; }
   </style>
@@ -24,6 +25,7 @@
     <canvas id="gl" aria-label="Vista do cockpit"></canvas>
     <canvas id="hud" aria-hidden="true"></canvas>
     <div id="debug" hidden style="position:absolute;inset:0;pointer-events:none;color:#6dff85;font-family:monospace;white-space:pre;padding:.5rem;line-height:1.4;text-align:left;"></div>
+    <span id="pitch-text">PITCH NORMAL</span>
     <div id="menu" class="panel" hidden>
       <h1>C-SPACE COCKPIT</h1>
       <p>Rota de teste: 12000 u, 4 dias de viagem, faixa de asteroides a meio.</p>
@@ -50,7 +52,6 @@
     <button type="button" data-action="5">Travar</button><button type="button" data-action="4">Acelerar</button>
     <button type="button" data-action="6">Laser</button><button type="button" data-action="7">Piloto</button>
     <button id="sound" type="button" aria-pressed="false">SOM LIGADO</button>
-    <span id="pitch-text">PITCH NORMAL</span>
   </div>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/howler/2.2.4/howler.min.js"></script>
   <script src="input.js"></script>
