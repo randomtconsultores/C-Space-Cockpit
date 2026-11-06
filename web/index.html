@@ -18,6 +18,9 @@
     #pitch-text { position: absolute; top: .5rem; right: .8rem; font-size: .8rem; color: #6dff85; opacity: .75; pointer-events: none; text-shadow: 0 0 4px #020605; }
     #touch { display: flex; flex-wrap: wrap; gap: .4rem; justify-content: center; padding: .4rem; }
     #touch button { touch-action: none; min-width: 3.2rem; user-select: none; }
+    .keymap-row { display: flex; align-items: center; gap: .6rem; width: 22rem; justify-content: space-between; padding: .35rem .6rem; border: 1px solid #1d5a2b; background: #06120a; margin: .15rem 0; }
+    .keymap-row span { flex: 0 0 9rem; text-align: left; }
+    .keymap-row button { flex: 0 0 8rem; text-align: center; }
   </style>
 </head>
 <body>
@@ -34,7 +37,18 @@
         <button type="button" data-ship="1">EQUILIBRADA</button>
         <button type="button" data-ship="2">PESADA</button>
       </div>
+      <button id="btn-keymap" type="button">TECLAS</button>
       <p>Setas ou WASD: pilotar | Z/X: acelerador | Espaço: laser | P: piloto automático | Enter: iniciar</p>
+    </div>
+    <div id="keymap" class="panel" hidden>
+      <h2>TECLAS</h2>
+      <div id="keymap-list"></div>
+      <p id="keymap-msg" style="color:#ffb000;font-size:.9rem;margin:.4rem 0;"></p>
+      <div>
+        <button id="keymap-reset" type="button">REPOR</button>
+        <button id="keymap-close" type="button">FECHAR</button>
+      </div>
+      <p style="font-size:.8rem;color:#9fd6a8;">Esc cancela a captura. Disponível só no menu inicial.</p>
     </div>
     <div id="end" class="panel" hidden>
       <h2></h2><p></p>
@@ -54,6 +68,7 @@
     <button id="sound" type="button" aria-pressed="false">SOM LIGADO</button>
   </div>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/howler/2.2.4/howler.min.js"></script>
+  <script src="keymap.js"></script>
   <script src="input.js"></script>
   <script src="events.js"></script>
   <script src="hud.js"></script>

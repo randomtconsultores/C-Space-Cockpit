@@ -18,7 +18,10 @@
   var debugOn = false;
   var fpsSamples = []; var fpsSum = 0;
   var lastSteps = 0, lastDebug = 0;
+  var simSteps = 0, simWindowStart = 0, simTicksPerSec = 0;
   var STAT = CockpitHud.STAT;
+  /* Key panel (initial menu only, never during flight). */
+  var keymapPanelOpen = false, capturing = false, captureAction = -1;
 
   function setStatus(t) { statusNode.textContent = t; }
 
@@ -56,9 +59,16 @@
     fpsSamples.push(dt); fpsSum += dt;
     if (fpsSamples.length > 60) { fpsSum -= fpsSamples.shift(); }
     var fps = fpsSamples.length > 0 ? 1000.0 / (fpsSum / fpsSamples.length) : 0;
+    simSteps += steps;
+    var sdt = now - simWindowStart;
+    if (sdt >= 1000) {
+      simTicksPerSec = sdt > 0 ? simSteps / (sdt / 1000) : 0;
+      simSteps = 0; simWindowStart = now;
+    }
     var modeVal = core ? (core._cs_stat(STAT.MODE) || 0) : 0;
     var lines = [
-      "FPS: " + fps.toFixed(0),
+      "DESENHO: " + fps.toFixed(0) + " FPS",
+      "SIM: " + simTicksPerSec.toFixed(0) + " ticks/s",
       "ticks/frame: " + lastSteps,
       "SPEED: " + (core ? core._cs_stat(STAT.SPEED) : 0).toFixed(1),
       "PROGRESS: " + (core ? core._cs_stat(STAT.PROGRESS) : 0).toFixed(0) + "%",
@@ -106,12 +116,13 @@
     menu.hidden = true; endNode.hidden = true; ended = false; paused = false; autoPaused = false;
     if (pauseNode) pauseNode.hidden = true;
     accum = 0; resize();
+    simWindowStart = performance.now();
     if (!running) { running = true; last = performance.now(); requestAnimationFrame(frame); }
     setStatus("");
   }
   function press(action, down) { if (core && action >= 0 && !paused) core._cs_input(action, down ? 1 : 0); }
   function pressInput(action, down) { press(CockpitSettings.mapAction(action), down); }
-  function releaseAll() { if (core) for (var a = 0; a < 8; a++) core._cs_input(a, 0); }
+  function releaseAll() { if (core) for (var a = 0; a < 8; a++) core._cs_input(a, 0); CockpitInput.releaseAll(); }
   function togglePause() {
     if (!running || menu.hidden === false || ended) return;
     paused = !paused; autoPaused = false;
@@ -127,6 +138,8 @@
 
   window.addEventListener("keydown", function (e) {
     if (!core) return;
+    if (capturing) { handleCaptureKeydown(e); e.preventDefault(); return; }
+    if (keymapPanelOpen) { if (e.code === "Escape") closeKeymapPanel(); e.preventDefault(); return; }
     if (e.code === "Enter" && (menu.hidden === false || ended)) { start(); e.preventDefault(); return; }
     if (e.code === "Escape" && menu.hidden === true && !ended) { togglePause(); e.preventDefault(); return; }
     if (e.code === "KeyI" && menu.hidden === true && !ended) {
@@ -137,12 +150,13 @@
     }
     if (paused) return;
     var a = CockpitInput.actionForCode(e.code);
-    if (a >= 0) { if (!e.repeat) pressInput(a, true); e.preventDefault(); }
+    if (a >= 0) { CockpitInput.keydown(e.code, e.repeat); e.preventDefault(); }
   });
   window.addEventListener("keyup", function (e) {
     if (!core) return;
+    if (capturing || keymapPanelOpen) { e.preventDefault(); return; }
     var a = CockpitInput.actionForCode(e.code);
-    if (a >= 0) { pressInput(a, false); e.preventDefault(); }
+    if (a >= 0) { CockpitInput.keyup(e.code); e.preventDefault(); }
   });
   window.addEventListener("blur", function () { autoPause(true); releaseAll(); });
   window.addEventListener("focus", function () { autoPause(false); });
@@ -150,6 +164,77 @@
   document.addEventListener("visibilitychange", function () {
     if (document.hidden) autoPause(true); else autoPause(false);
   });
+
+  /* --- Painel de teclas (só no menu inicial) --- */
+  var keymapNode = document.getElementById("keymap");
+  var keymapMsgNode = document.getElementById("keymap-msg");
+
+  function showMsg(m) { if (keymapMsgNode) keymapMsgNode.textContent = m; }
+
+  function renderKeymapPanel() {
+    var list = document.getElementById("keymap-list");
+    if (!list) return;
+    list.innerHTML = "";
+    for (var a = 0; a < CockpitKeymap.ACTION_COUNT; a++) {
+      var row = document.createElement("div");
+      row.className = "keymap-row";
+      var label = document.createElement("span");
+      label.textContent = CockpitKeymap.ACTION_NAMES[a];
+      var btn = document.createElement("button");
+      btn.type = "button";
+      btn.dataset.action = a;
+      btn.textContent = CockpitKeymap.getKeys(a).join(" ");
+      (function (act) {
+        btn.addEventListener("click", function () { startCapture(act); });
+      })(a);
+      row.appendChild(label);
+      row.appendChild(btn);
+      list.appendChild(row);
+    }
+  }
+
+  function startCapture(action) {
+    capturing = true; captureAction = action;
+    var btn = document.querySelector('#keymap-list [data-action="' + action + '"]');
+    if (btn) btn.textContent = "PRESSIONE UMA TECLA";
+    showMsg("");
+  }
+
+  function endCapture() {
+    capturing = false; captureAction = -1;
+    renderKeymapPanel();
+  }
+
+  function closeKeymapPanel() {
+    endCapture();
+    keymapPanelOpen = false;
+    if (keymapNode) keymapNode.hidden = true;
+    if (menu) menu.hidden = false;
+    showMsg("");
+  }
+
+  function openKeymapPanel() {
+    if (!core) return;
+    if (menu.hidden !== false || ended) return;
+    keymapPanelOpen = true;
+    if (menu) menu.hidden = true;
+    if (keymapNode) keymapNode.hidden = false;
+    renderKeymapPanel();
+    showMsg("");
+  }
+
+  function handleCaptureKeydown(e) {
+    var code = e.code;
+    if (code === "Escape") { endCapture(); e.preventDefault(); return; }
+    var res = CockpitKeymap.assign(captureAction, code);
+    if (res.ok) {
+      endCapture();
+      renderKeymapPanel();
+      if (res.message) showMsg(res.message);
+    } else {
+      showMsg(res.message || "Nao foi possivel atribuir.");
+    }
+  }
 
   Array.prototype.forEach.call(document.querySelectorAll("[data-ship]"), function (b) {
     b.addEventListener("click", function () { shipType = Number(b.dataset.ship); start(); });
@@ -163,10 +248,21 @@
   document.getElementById("sound").addEventListener("click", function (e) {
     soundOn = !soundOn; e.target.textContent = soundOn ? "SOM LIGADO" : "SOM DESLIGADO"; e.target.setAttribute("aria-pressed", String(!soundOn));
   });
+  var btnKeymap = document.getElementById("btn-keymap");
+  if (btnKeymap) btnKeymap.addEventListener("click", openKeymapPanel);
+  var btnKeymapClose = document.getElementById("keymap-close");
+  if (btnKeymapClose) btnKeymapClose.addEventListener("click", closeKeymapPanel);
+  var btnKeymapReset = document.getElementById("keymap-reset");
+  if (btnKeymapReset) btnKeymapReset.addEventListener("click", function () {
+    CockpitKeymap.resetAll(); renderKeymapPanel(); showMsg("");
+  });
 
   try { renderer = new CockpitRenderer(glCanvas, 70); } catch (err) { setStatus("WebGL indisponível: " + err.message); return; }
   if (typeof createCockpit !== "function") { setStatus("cockpit.js não encontrado: execute make -f web/Makefile all."); return; }
   try { CockpitSettings.useStorage(window.localStorage); } catch (err) { /* storage blocked: defaults only */ }
+  try { CockpitKeymap.useStorage(window.localStorage); CockpitKeymap.load(); } catch (err) { /* storage blocked: defaults only */ }
+  CockpitInput.setKeymap(CockpitKeymap);
+  CockpitInput.bind(pressInput);
   updatePitchText();
   createCockpit().then(function (m) {
     core = m; window.__cockpit = m; resize(); setStatus(""); menu.hidden = false;
