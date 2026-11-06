@@ -36,6 +36,7 @@ Flight
 - Damped rotational inertia with tunable values per ship (decided). Pitch normal by default (decided).
 - Tune turn rate, speed and throttle per ship. Roll stays cosmetic.
 - Decide whether the 35 degree cone and the corridor stay. Feedback: widen the free space outside the route path.
+- Asteroid belt difficulty (Director, 2026-11-06): harder than M1. The laser must become necessary: some rocks fully block the path and have to be destroyed or avoided with precise manoeuvres. Higher density, tighter gaps, sizes that need more than one shot. The belt stays solvable (solvability tests per seed) and keeps one safe route for the autopilot refusal rule.
 - Fixed 60 Hz simulation with render interpolation, so a 120 Hz monitor draws 120 Hz. First check what F3 measures (it showed 60 on a 120 Hz screen).
 Pace and content
 - Faster pace after the introduction trip: enemies and a mix of elements (pirates, debris), still built on the M1 laser, hull and rocks.
@@ -56,6 +57,16 @@ Next
 - Debt: single currency value, paid in credits and or missions. Initial amount provisional.
 - Seed + generator_version universe. Solvability tests over many seeds.
 - Calibration by simulation of the fuel constants.
+
+## M3 introductory level (decided 2026-11-06)
+The first level keeps the current trip and puts a story and tutorial in front of it.
+1. Vertical ascent from Earth (semi-guided): the pilot controls throttle and the final pitch. Heavy inertia, vibration, sky colour from blue to black, muffled sounds.
+2. Leaving the atmosphere: air fades, outside sound disappears, only hull sound remains.
+3. Calm flight to the Moon (autopilot, calm music).
+4. Lunar slingshot: a simple corridor on the trajectory gives a speed bonus and saves fuel. Presented as computed by Earth scientists. Real physics comes in later levels.
+5. Asteroid belt (harder, see M2).
+6. Exit from the Solar System and the first jump as the closing scene.
+Everything is seen from the cockpit (no external view). Needs in the core: simple atmosphere density and drag by altitude, a lunar corridor bonus, a phase state machine with story text. Sound and colour follow the phase. Prototype the slingshot in isolation first.
 
 ## M4 Landing prototype (later)
 Atmosphere entry and landing in the cockpit, partially navigable terrain (GL), different atmospheres. Explore fixed 2.5D vs 3D here. Planet races use this.
