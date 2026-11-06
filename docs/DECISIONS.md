@@ -24,6 +24,7 @@ Source: design report and Director answers of 2026-11-04. "Open" means not decid
 | Debt increase after a loss | The ship cost is added to the debt. The pilot runs one or more tutorials to recover that increase, which also trains ship control. |
 | Introductory level | Added to M3: vertical ascent from Earth (semi-guided: pilot controls throttle and final pitch), atmosphere exit with inertia, sound and colour changes, calm flight, simple lunar slingshot (corridor bonus, presented as computed by Earth scientists; real physics in later levels), a harder asteroid belt, exit from the Solar System and first jump. Cockpit view only. |
 | Asteroid belt difficulty | Harder than M1: the laser must be needed. Still solvable. |
+| Introductory level pacing | Director feedback after the first browser look (2026-11-06): the ascent through the atmosphere must last about 2 minutes at normal throttle (the player may play with speed and acceleration; slower is allowed and costs fuel), with a smooth sky transition blue, then orange/red, then violet, then black, with stars fading in. The lunar phase must last about 1 minute. The Moon is gigantic and massive: the ship is tiny beside it and must go round it to gain momentum. |
 
 ## Fixed rules inherited from the migration
 

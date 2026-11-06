@@ -66,6 +66,7 @@ The first level keeps the current trip and puts a story and tutorial in front of
 4. Lunar slingshot: a simple corridor on the trajectory gives a speed bonus and saves fuel. Presented as computed by Earth scientists. Real physics comes in later levels.
 5. Asteroid belt (harder, see M2).
 6. Exit from the Solar System and the first jump as the closing scene.
+Pacing (Director, 2026-11-06): ascent about 2 minutes, smooth blue-orange-red-violet-black sky, lunar phase about 1 minute, huge Moon that the ship goes round. Tasks 12a (ascent and sky) and 12b (Moon). Sound per phase moves to task 13.
 Everything is seen from the cockpit (no external view). Needs in the core: simple atmosphere density and drag by altitude, a lunar corridor bonus, a phase state machine with story text. Sound and colour follow the phase. Prototype the slingshot in isolation first.
 
 ## M4 Landing prototype (later)
