@@ -2,8 +2,8 @@
 
 Layout along z (constants in core/level.h):
 - Ascent and atmosphere: z in [0, LV_ATMO_END = 2500]. The flight starts on the pad (pz = 0, speed 0, manual mode, throttle 0).
-- Transit to the Moon, lunar zone centred at LV_MOON_Z = 4500 (width LV_MOON_ZONE = 400).
-- Asteroid belt: route.belt_start .. belt_end (5000..8000). Exit: up to route.length (12000).
+- Transit to the Moon, lunar zone centred at LV_MOON_Z = 7500 (width LV_MOON_ZONE = 2250).
+- Asteroid belt: BELT_START .. BELT_END (11000..14000). Exit: up to ROUTE_LENGTH (16000).
 - The phase (LevelPhase) is derived from pz only. No phase state is stored.
 
 Formulas (d = density, 1 on the ground, 0 at LV_ATMO_END and above):
@@ -19,19 +19,21 @@ Formulas (d = density, 1 on the ground, 0 at LV_ATMO_END and above):
 
 Ascent tilt (tilt_angle, radians, 90 degrees at start): guided gravity turn towards 0 at LV_ATMO_END. Holding pitch changes the tilt rate (LV_TILT_AUTHORITY). If |tilt| > LV_TILT_WINDOW when crossing LV_ATMO_END, FL_EV_TILT_WARNING is raised once and LV_TILT_PENALTY fuel is lost. The ship is never destroyed by this. tilt_angle is stored in the checkpoint (validated finite, 0..pi/2).
 
-Lunar slingshot: when pz crosses LV_MOON_Z the lateral offset to the reference trajectory (lunar_cx, lunar_cy) gives quality q = 1 - offset / LV_SLING_WIDTH (0..1). Speed is multiplied by 1 + LV_SLING_SPEED_RATIO * q and LV_SLING_FUEL * q fuel is credited. Events: FL_EV_SLING_GOOD (q >= 0.7), FL_EV_SLING_OK (q >= 0.3), FL_EV_SLING_MISS. The effect and the phase events are detected by comparing pz before and after the tick, so no static or hidden state exists and a restored checkpoint behaves like the original.
+Lunar slingshot (final design): the Moon is a fixed sphere in the world, centre (LV_MOON_CX 2600, 0, LV_MOON_Z 7500), radius LV_MOON_RADIUS 2000. Lunar zone: |pz - LV_MOON_Z| <= LV_MOON_ZONE (2250); inside it the lateral soft wall is LV_MOON_LATERAL (1300) and the off-route alert is suppressed. Altitude = 3D distance to the centre minus the radius (lv_moon_alt). Sling quality q (lv_sling_quality) is 1 at altitude <= 200 and falls linearly to 0 at 900. While q > 0 the speed target rises by 25% of max speed times q and fuel is credited at LV_SLING_FUEL/20 per second times q (about 50 per 20 s at q=1), for manual and autopilot alike. When pz crosses LV_MOON_Z a summary event is raised: FL_EV_SLING_GOOD (q >= 0.7), FL_EV_SLING_OK (q >= 0.3), FL_EV_SLING_MISS. The autopilot steers to x=0 (altitude about 600, q about 0.4). Guide rings (draw_guide_rings) follow a circular path at altitude LV_MOON_RING_ALT (250). Measured durations of the lunar phase: about 70 s at 60% throttle, about 43 s at full throttle. Phase events compare pz before and after the tick, so a restored checkpoint behaves like the original.
 
-New stats: PHASE, ALTITUDE, ATMO_DENSITY, ASCENT_ANGLE, SLING_OFFSET (0 outside the zone), SLING_QUALITY, MOON_DISTANCE. New events: PHASE_ATMO_EXIT, PHASE_MOON, SLING_GOOD/OK/MISS, TILT_WARNING (the web layer ignores unknown ids until the scene and sound tasks map them).
+Moon collision: contact (altitude < ship radius) pushes the ship out, halves speed and causes LV_MOON_COLLISION_DAMAGE_RATIO = 0.60 of hull_max damage once per contact. HUD warning below LV_MOON_WARN_ALT (150). Event: FL_EV_MOON_COLLISION.
 
-generator_version is 3. Left for the next tasks: sound per phase (task 12b part 2).
+New stats: PHASE, ALTITUDE, ATMO_DENSITY, ASCENT_ANGLE, SLING_OFFSET (0 outside the zone), SLING_QUALITY, MOON_DISTANCE, MOON_ALT (altitude above Moon surface, 0 outside zone). New events: PHASE_ATMO_EXIT, PHASE_MOON, SLING_GOOD/OK/MISS, TILT_WARNING, MOON_COLLISION.
 
-## Scene and guidance (task 11)
+generator_version is 4. Checkpoint validates the version and rejects older versions.
+
+## Scene and guidance (tasks 11 and 12b)
 
 The C core (`core/scene.c`, `core/scene.h`) builds the view-space scene from `Flight` state:
 
 - **Scene colors**: `SC_ROCK=0`, `SC_GUIDE=1`, `SC_CONTACT=2`, `SC_LASER=3`, `SC_PLANET=4`, `SC_EARTH=5`, `SC_MOON=6`.
 - **Earth**: wireframe sphere (9 parallels x 16 meridians + simple continent outline) drawn below and slightly ahead of the ship during ascent (`pz < LV_ATMO_END`). Radius shrinks linearly from 600 at `pz=0` to 0 at `pz=LV_ATMO_END`. Rotated around X by `tilt_angle` so the horizon reflects the guided ascent angle. Colour `SC_EARTH` (blue-green).
-- **Moon**: wireframe sphere (icosahedron, `SC_MOON` colour) drawn at the lunar reference trajectory position (`lv_moon_xy`) only inside the lunar zone (`|pz - LV_MOON_Z| <= LV_MOON_ZONE`).
+- **Moon**: wireframe sphere fixed in the world (parallels, meridians, craters, back-face culled), drawn from the end of the atmosphere until just after the zone; it must be circled, not followed.
 - **Guide rings**: 10 thin rings (`SC_GUIDE`) along the lunar reference trajectory, only ahead of the ship, fading with distance. Inside the lunar zone only.
 - **Stars and dust**: hidden when atmospheric density `d > 0.95`; brightness fades linearly as `d` drops (`fade = 1 - d`).
 - **Segment budget**: `SCENE_MAX_SEGS = 4096`; `add_seg` stops drawing when full. Earth, Moon and guide rings only appear outside the belt, so the 96-rocha belt always fits.
@@ -52,9 +54,10 @@ The HUD (`web/hud.js`):
 - Hint line (`CockpitStory.hintForState`) above the alert banner.
 - `ALTITUDE` (km, z/25 -> ~100 km at LV_ATMO_END) and `INCLINAÇÃO` (current vs target angle) during ascent.
 - `DESVIO` (lateral offset) and sling quality (green/amber/red) in the lunar zone.
+- Proximity warning ("PERIGO: demasiado perto da superfície.") when MOON_ALT < 150 in the lunar zone.
 
 Story text (`web/story.js`, pure, Node-testable):
 - `textForPhase(phase)`, `textForEvent(ev)`, `hintForState(stats)`.
-- Portuguese (pt-PT) with accents: platform, ascent, tilt warning, atmo exit, transit, moon, sling GOOD/OK/MISS.
+- Portuguese (pt-PT) with accents: platform, ascent, tilt warning, atmo exit, transit, moon guide, moon warn, sling GOOD/OK/MISS.
 
 The browser shell (`web/cockpit.js`) shows event text (via `CockpitStory.textForEvent`) for 4 seconds as a temporary on-screen message.

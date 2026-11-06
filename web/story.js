@@ -9,7 +9,8 @@
   "use strict";
 
   /* Stat ids mirror core/FlStat (core/flight.h). */
-  var FS_SPEED = 0, FS_PHASE = 23, FS_ALTITUDE = 24, FS_ASCENT_ANGLE = 26;
+  var FS_SPEED = 0, FS_PHASE = 23, FS_ALTITUDE = 24, FS_ASCENT_ANGLE = 26,
+      FS_MOON_ALT = 30;
 
   /* Phase ids mirror core/LevelPhase (core/level.h). */
   var LV_ASCENT = 0, LV_ATMO_EXIT = 1, LV_TRANSIT = 2, LV_MOON = 3,
@@ -18,7 +19,7 @@
   /* Event ids mirror core/FlEvent (core/flight.h). */
   var FL_EV_PHASE_ATMO_EXIT = 13, FL_EV_PHASE_MOON = 14,
       FL_EV_SLING_GOOD = 15, FL_EV_SLING_OK = 16, FL_EV_SLING_MISS = 17,
-      FL_EV_TILT_WARNING = 18;
+      FL_EV_TILT_WARNING = 18, FL_EV_MOON_COLLISION = 19;
 
   var TEXTS = {
     START: "Plataforma de lan\u00e7amento. Aumente o acelerador (X) para descolar.",
@@ -27,6 +28,8 @@
     ATMO_EXIT: "Sa\u00edmos da atmosfera. O piloto autom\u00e1tico (P) est\u00e1 dispon\u00edvel.",
     TRANSIT: "Rumo \u00e0 Lua.",
     MOON: "Aproxima\u00e7\u00e3o \u00e0 Lua. Siga o corredor calculado pelos cientistas terrestres para ganhar velocidade.",
+    MOON_GUIDE: "Contorne a Lua seguindo os an\u00e9is, perto da superf\u00edcie mas sem lhe tocar, para ganhar velocidade.",
+    MOON_WARN: "Perigo: demasiado perto da superf\u00edcie.",
     SLING_GOOD: "Fisga gravitacional perfeita. Velocidade e combust\u00edvel ganhos.",
     SLING_OK: "Fisga gravitacional aceit\u00e1vel.",
     SLING_MISS: "Fisga falhada. Sem ganho desta vez."
@@ -37,7 +40,7 @@
       case LV_ASCENT: return TEXTS.ASCENT;
       case LV_ATMO_EXIT: return TEXTS.ATMO_EXIT;
       case LV_TRANSIT: return TEXTS.TRANSIT;
-      case LV_MOON: return TEXTS.MOON;
+      case LV_MOON: return TEXTS.MOON_GUIDE;
       case LV_BELT: return "";
       case LV_EXIT: return "";
       case LV_DONE: return "";
@@ -48,11 +51,12 @@
   function textForEvent(ev) {
     switch (ev) {
       case FL_EV_PHASE_ATMO_EXIT: return TEXTS.ATMO_EXIT;
-      case FL_EV_PHASE_MOON: return TEXTS.MOON;
+      case FL_EV_PHASE_MOON: return TEXTS.MOON_GUIDE;
       case FL_EV_SLING_GOOD: return TEXTS.SLING_GOOD;
       case FL_EV_SLING_OK: return TEXTS.SLING_OK;
       case FL_EV_SLING_MISS: return TEXTS.SLING_MISS;
       case FL_EV_TILT_WARNING: return TEXTS.TILT_WARNING;
+      case FL_EV_MOON_COLLISION: return TEXTS.MOON_WARN;
       default: return "";
     }
   }
@@ -62,10 +66,16 @@
     var phase = stats(FS_PHASE);
     var altitude = stats(FS_ALTITUDE);
     var speed = stats(FS_SPEED);
+    var moonAlt = stats(FS_MOON_ALT);
+
+    /* Proximity warning takes precedence in the lunar zone. */
+    if (phase === LV_MOON && moonAlt < 150) {
+      return TEXTS.MOON_WARN;
+    }
 
     /* Tilt warning takes precedence during ascent. */
     if (phase === LV_ASCENT) {
-      /* Deviation from the guided gravity-turn profile (pi/2 at the pad, 0 at LV_ATMO_END = 2500). */
+      /* Deviation from the guided gravity-turn profile (pi/2 at the pad, 0 at 2500). */
       var target = (Math.PI / 2) * (1 - altitude / 2500);
       if (target < 0) target = 0;
       if (Math.abs(stats(FS_ASCENT_ANGLE) - target) > 0.20943951) {
@@ -82,7 +92,7 @@
     /* Atmosphere exit, transit, moon. */
     if (phase === LV_ATMO_EXIT) return TEXTS.ATMO_EXIT;
     if (phase === LV_TRANSIT) return TEXTS.TRANSIT;
-    if (phase === LV_MOON) return TEXTS.MOON;
+    if (phase === LV_MOON) return TEXTS.MOON_GUIDE;
 
     return "";
   }

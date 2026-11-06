@@ -8,7 +8,7 @@
   var STAT = ["SPEED", "SPEED_MAX", "THROTTLE", "FUEL", "FUEL_MAX", "FUEL_ROUTE_COST", "HULL", "HULL_MAX",
     "ENERGY", "ENERGY_MAX", "PROGRESS", "ETA_SECONDS", "PILOT_DAYS", "EARTH_DAYS", "ROUTE_DAYS",
     "DISTANCE_LEFT", "MODE", "ALERT", "IN_BELT", "ROCKS_ALIVE", "SENSOR_RANGE", "SHAKE", "LASER_FLASH",
-    "PHASE", "ALTITUDE", "ATMO_DENSITY", "ASCENT_ANGLE", "SLING_OFFSET", "SLING_QUALITY", "MOON_DISTANCE"]
+    "PHASE", "ALTITUDE", "ATMO_DENSITY", "ASCENT_ANGLE", "SLING_OFFSET", "SLING_QUALITY", "MOON_DISTANCE", "MOON_ALT"]
     .reduce(function (o, k, i) { o[k] = i; return o; }, {});
   var MODE_TEXT = ["PILOTO AUTOMÁTICO", "CONTROLO MANUAL", "CHEGADA", "NAVE DESTRUÍDA", "SEM COMBUSTÍVEL"];
   var ALERT_TEXT = ["", "PERIGO À FRENTE: FAIXA DE ASTEROIDES", "ASSUMA O CONTROLO MANUAL",
@@ -110,11 +110,16 @@
       if (targetTilt < 0) targetTilt = 0;
       ctx.fillText("INCLINAÇÃO " + Math.round(tilt * 180 / Math.PI) + "° / alvo " + Math.round(targetTilt * 180 / Math.PI) + "°", x0, gy + s * 1.5);
     } else if (phase === 3) {
-      var offset = stats(STAT.SLING_OFFSET);
+      var moonAlt = stats(STAT.MOON_ALT);
       var quality = stats(STAT.SLING_QUALITY);
       var scolor = quality >= 0.7 ? GREEN : (quality >= 0.3 ? AMBER : RED);
       ctx.fillStyle = scolor; ctx.textAlign = "left";
-      ctx.fillText("DESVIO " + Math.round(offset) + " u  Q " + Math.round(quality * 100) + "%", x0, gy);
+      ctx.fillText("ALTITUDE LUA " + Math.round(moonAlt) + " u", x0, gy);
+      ctx.fillText("IMPULSO " + Math.round(quality * 100) + "%", x0, gy + s * 1.5);
+      /* Proximity warning when close to the Moon surface (150 u). */
+      if (moonAlt < 150) {
+        ctx.fillStyle = RED; ctx.fillText("PERIGO: demasiado perto da superfície.", x0, gy + s * 3);
+      }
     }
 
     scanner(ctx, w * 0.5, top + dash * 0.52, w * 0.13, dash * 0.34, contacts, contactCount, stats(STAT.SENSOR_RANGE));

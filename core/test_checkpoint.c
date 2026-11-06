@@ -1,4 +1,5 @@
 #include "checkpoint.h"
+#include "level.h"
 #include <math.h>
 #include <stdio.h>
 #include <string.h>
@@ -100,7 +101,7 @@ static void test_validation_rules(void)
     /* pz < 0 */
     c = base; c.pz = -1.0f; CHECK(cp_validate(&c) == CP_INVALID);
     /* pz >= route length */
-    c = base; c.pz = 12000.0f; CHECK(cp_validate(&c) == CP_INVALID);
+    c = base; c.pz = ROUTE_LENGTH; CHECK(cp_validate(&c) == CP_INVALID);
     c = base; c.pz = 20000.0f; CHECK(cp_validate(&c) == CP_INVALID);
     /* hypot(px, py) > corridor * 1.1 */
     c = base; c.px = 400.0f; c.py = 0.0f; CHECK(cp_validate(&c) == CP_INVALID);

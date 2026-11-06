@@ -109,10 +109,10 @@ static void test_handover(void)
 static void test_autopilot_toggle(void)
 {
     flight_init(&F, SHIP_BALANCED, 5);
-    F.pz = 5500.0f; F.mode = FL_MODE_MANUAL;
+    F.pz = 1000.0f; F.mode = FL_MODE_MANUAL;   /* inside atmosphere: refused */
     flight_input(&F, FL_AUTOPILOT_TOGGLE, 1); flight_tick(&F); flight_input(&F, FL_AUTOPILOT_TOGGLE, 0);
     CHECK(F.mode == FL_MODE_MANUAL); CHECK(drain_has(&F, FL_EV_AUTOPILOT_REFUSED));
-    F.pz = 9000.0f;
+    F.pz = 10000.0f;   /* outside atmosphere and belt: accepted */
     flight_input(&F, FL_AUTOPILOT_TOGGLE, 1); flight_tick(&F);
     CHECK(F.mode == FL_MODE_AUTOPILOT);
     flight_input(&F, FL_AUTOPILOT_TOGGLE, 0); flight_input(&F, FL_AUTOPILOT_TOGGLE, 1); flight_tick(&F);
@@ -288,9 +288,9 @@ static void test_scene_intro(void)
     for (int i = 0; i < S.pt_count; i++) if (S.pts[i * SCENE_PT_STRIDE + 3] > 0.01f) star_high++;
     CHECK(star_high > 0);
 
-    /* Lunar zone (pz = 3000): Moon and guide rings present. */
+    /* Lunar zone (pz = 7500): Moon and guide rings present. */
     flight_init(&F, SHIP_BALANCED, 11);
-    F.pz = 3000.0f; F.mode = FL_MODE_MANUAL;
+    F.pz = 7500.0f; F.mode = FL_MODE_MANUAL;
     scene_build(&F, &S);
     CHECK(S.seg_count <= SCENE_MAX_SEGS);
     int moon_segs = 0, guide_segs = 0;
@@ -323,6 +323,32 @@ static void test_scene_intro(void)
         for (int k = 0; k < 7; k++) CHECK(isfinite(sg[k]));
     }
 }
+
+static void test_scene_lunar_zone(void)
+{
+    /* Scene within the lunar zone never exceeds SCENE_MAX_SEGS and has Moon
+       segments when close to the Moon. Sweep pz from 500 before the zone to
+       500 after it. */
+    for (float z = LV_MOON_Z - LV_MOON_ZONE - 500.0f;
+         z <= LV_MOON_Z + LV_MOON_ZONE + 500.0f; z += 100.0f) {
+        flight_init(&F, SHIP_BALANCED, 11);
+        F.pz = z; F.mode = FL_MODE_MANUAL;
+        scene_build(&F, &S);
+        CHECK(S.seg_count > 0 && S.seg_count <= SCENE_MAX_SEGS);
+        for (int i = 0; i < S.seg_count; i++) {
+            const float *sg = &S.seg[i * SCENE_SEG_STRIDE];
+            for (int k = 0; k < 7; k++) CHECK(isfinite(sg[k]));
+        }
+        /* Moon visible until the ship has passed it (its far side is behind the view). */
+        if (z >= LV_MOON_Z - LV_MOON_ZONE && z <= LV_MOON_Z + LV_MOON_RADIUS - 100.0f) {
+            int moon_segs = 0;
+            for (int i = 0; i < S.seg_count; i++)
+                if ((int)S.seg[i * SCENE_SEG_STRIDE + 6] == SC_MOON) moon_segs++;
+            CHECK(moon_segs > 0);
+        }
+    }
+}
+
 static void test_stat_bounds(void) {
     flight_init(&F, SHIP_BALANCED, 1);
     for (int id = 0; id < FS_COUNT; id++) CHECK(isfinite(flight_stat(&F, id)));
@@ -492,7 +518,7 @@ int main(void)
     test_collision_and_laser(); test_destroyed();
     test_fuel(); test_time_and_arrival(); test_corridor(); test_inertia_press_release();
     test_turn_rate_heavy_vs_light(); test_max_angle_limit(); test_simultaneous_inputs_cancel();
-    test_scene(); test_stat_bounds(); test_scene_intro(); test_solvability_seeds();
+    test_scene(); test_stat_bounds(); test_scene_intro(); test_scene_lunar_zone(); test_solvability_seeds();
     printf("%d checks, %d failures\n", checks, failures);
     return failures ? 1 : 0;
 }

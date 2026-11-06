@@ -160,11 +160,11 @@ int flight_init(Flight *f, int ship_type, unsigned int seed)
     memset(f, 0, sizeof *f);
     f->spec = s;
     rng_seed(&f->rng, seed);
-    f->route.length = 12000.0f;
+    f->route.length = ROUTE_LENGTH;
     f->route.days = 4.0f;
     f->route.dilation = 1.0f;
-    f->route.belt_start = 5000.0f;
-    f->route.belt_end = 8000.0f;
+    f->route.belt_start = BELT_START;
+    f->route.belt_end = BELT_END;
     f->route.rock_count = 64;
     f->route.seed = seed;
     f->route.generator_version = FL_GENERATOR_VERSION;
@@ -238,7 +238,7 @@ static void update_alert(Flight *f)
              f->route.belt_start - f->pz < cruise * FL_WARN_SECONDS) a = FL_ALERT_HAZARD_AHEAD;
     if (f->fuel < left * s->fuel_per_unit && f->mode <= FL_MODE_MANUAL) a = FL_ALERT_LOW_FUEL;
     if (f->hull < s->hull_max * 0.25f && f->mode <= FL_MODE_MANUAL) a = FL_ALERT_HULL_CRITICAL;
-    if (a == FL_ALERT_NONE && hypotf(f->px, f->py) > FL_CORRIDOR * 0.9f) a = FL_ALERT_OFF_ROUTE;
+    if (a == FL_ALERT_NONE && !lv_moon_in_zone(f->pz) && hypotf(f->px, f->py) > FL_CORRIDOR * 0.9f) a = FL_ALERT_OFF_ROUTE;
     if (a != f->alert_prev) {
         if (a == FL_ALERT_HAZARD_AHEAD) push_event(f, FL_EV_WARNING);
         else if (a == FL_ALERT_LOW_FUEL) push_event(f, FL_EV_LOW_FUEL);
@@ -334,6 +334,9 @@ void flight_tick(Flight *f)
     }
 
     float target_speed = f->fuel > 0.0f ? f->throttle * s->max_speed * drag * lv_max_speed_factor(f->pz) : 0.0f;
+    /* Lunar sling: the speed target rises with the quality (low over the surface). */
+    if (target_speed > 0.0f && lv_moon_in_zone(f->pz))
+        target_speed += s->max_speed * LV_SLING_SPEED_RATIO * lv_sling_quality(lv_moon_alt(f->px, f->py, f->pz));
     f->speed = approach(f->speed, target_speed, s->accel * dt);
     float cp = cosf(f->pitch);
     float dx = sinf(f->yaw) * cp, dy = sinf(f->pitch), dz = cosf(f->yaw) * cp;
@@ -341,8 +344,17 @@ void flight_tick(Flight *f)
     f->px += dx * step; f->py += dy * step; f->pz += dz * step;
     f->fuel = clampf(f->fuel - step * s->fuel_per_unit * fuel_factor, 0.0f, s->fuel_max);
 
-    float rad = hypotf(f->px, f->py);                 /* soft corridor wall */
-    if (rad > FL_CORRIDOR * 1.1f) { float k = FL_CORRIDOR * 1.1f / rad; f->px *= k; f->py *= k; }
+    /* Soft corridor wall. Inside the lunar zone it is much wider, so the pilot
+       can steer towards the Moon. When the wall shrinks again after the zone,
+       the ship is pulled in smoothly (no snap). */
+    {
+        const float wall = lv_moon_in_zone(pz_before) ? LV_MOON_LATERAL : FL_CORRIDOR * 1.1f;
+        float rad = hypotf(f->px, f->py);
+        if (rad > wall) {
+            float target = wall > rad - 150.0f * dt ? wall : rad - 150.0f * dt;
+            float k = target / rad; f->px *= k; f->py *= k;
+        }
+    }
 
     if (h & (1u << FL_FIRE)) fire_laser(f, dx, dy, dz);
 
@@ -381,13 +393,41 @@ void flight_tick(Flight *f)
                 }
             } else if (phase_after == LV_MOON) push_event(f, FL_EV_PHASE_MOON);
         }
-        /* Lunar slingshot: applied once when pz crosses LV_MOON_Z. */
-        if (pz_before < LV_MOON_Z && f->pz >= LV_MOON_Z) {
-            float lx, ly;
-            if (lv_moon_xy(f, f->pz, &lx, &ly)) {
-                float q = lv_sling_quality(hypotf(f->px - lx, f->py - ly));
-                f->speed *= (1.0f + LV_SLING_SPEED_RATIO * q);
-                f->fuel = clampf(f->fuel + LV_SLING_FUEL * q, 0.0f, s->fuel_max);
+        /* Moon: collision and continuous sling gain, only inside the lunar zone. */
+        if (lv_moon_in_zone(f->pz)) {
+            float alt = lv_moon_alt(f->px, f->py, f->pz);
+            /* Surface contact: heavy hull damage (once per contact, guarded by the
+               shake timer) and the ship is pushed back above the surface. */
+            if (alt < FL_SHIP_RADIUS) {
+                float mx, my, mz;
+                lv_moon_center(&mx, &my, &mz);
+                float nx = f->px - mx, ny = f->py - my, nz = f->pz - mz;
+                float len = sqrtf(nx * nx + ny * ny + nz * nz);
+                if (len > 0.0f) {
+                    float r = LV_MOON_RADIUS + FL_SHIP_RADIUS + 20.0f;
+                    f->px = mx + nx / len * r; f->py = my + ny / len * r; f->pz = mz + nz / len * r;
+                }
+                f->speed *= 0.5f;
+                if (f->shake < 0.5f) {
+                    f->hull = clampf(f->hull - s->hull_max * lv_moon_collision_damage(f), 0.0f, s->hull_max);
+                    f->shake = 0.8f;
+                    push_event(f, FL_EV_MOON_COLLISION);
+                    if (f->hull <= 0.0f) {
+                        f->mode = FL_MODE_DESTROYED;
+                        push_event(f, FL_EV_DESTROYED); f->alert = f->alert_prev = 0; return;
+                    }
+                }
+                alt = lv_moon_alt(f->px, f->py, f->pz);
+            }
+            /* Fuel credit while the ship is low over the surface (the speed gain is in the target above):
+               spread in time
+               (total about LV_SLING_FUEL at quality 1 over LV_SLING_BAND_SECONDS). */
+            float q = lv_sling_quality(alt);
+            if (q > 0.0f && f->fuel > 0.0f && (f->mode == FL_MODE_MANUAL || f->mode == FL_MODE_AUTOPILOT)) {
+                f->fuel = clampf(f->fuel + LV_SLING_FUEL / LV_SLING_BAND_SECONDS * q * dt, 0.0f, s->fuel_max);
+            }
+            /* One-shot summary when the ship crosses the closest-approach plane. */
+            if (pz_before < LV_MOON_Z && f->pz >= LV_MOON_Z) {
                 if (q >= 0.7f) push_event(f, FL_EV_SLING_GOOD);
                 else if (q >= 0.3f) push_event(f, FL_EV_SLING_OK);
                 else push_event(f, FL_EV_SLING_MISS);
@@ -428,17 +468,15 @@ float flight_stat(const Flight *f, int id)
     case FS_ALTITUDE: return f->pz < LV_ATMO_END ? f->pz : LV_ATMO_END;
     case FS_ATMO_DENSITY: return lv_density(f->pz);
     case FS_ASCENT_ANGLE: return f->tilt_angle;
-    case FS_SLING_OFFSET: {
-        float lx, ly;
-        if (lv_moon_xy(f, f->pz, &lx, &ly)) return hypotf(f->px - lx, f->py - ly);
-        return 0.0f;
+    case FS_SLING_OFFSET: {   /* distance to the best altitude band, 0 when inside it */
+        if (!lv_moon_in_zone(f->pz)) return 0.0f;
+        float alt = lv_moon_alt(f->px, f->py, f->pz);
+        return alt > LV_SLING_ALT_BEST ? alt - LV_SLING_ALT_BEST : 0.0f;
     }
-    case FS_SLING_QUALITY: {
-        float lx, ly;
-        if (lv_moon_xy(f, f->pz, &lx, &ly)) return lv_sling_quality(hypotf(f->px - lx, f->py - ly));
-        return 0.0f;
-    }
+    case FS_SLING_QUALITY:
+        return lv_moon_in_zone(f->pz) ? lv_sling_quality(lv_moon_alt(f->px, f->py, f->pz)) : 0.0f;
     case FS_MOON_DISTANCE: return f->pz - LV_MOON_Z;
+    case FS_MOON_ALT: return lv_moon_in_zone(f->pz) ? lv_moon_alt(f->px, f->py, f->pz) : 0.0f;
     default: return 0.0f;
     }
 }

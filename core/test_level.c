@@ -18,22 +18,22 @@ static Flight F;
 static void test_phase_from_pz(void)
 {
     /* pz < LV_ATMO_END -> ASCENT */
-    CHECK(lv_phase_for_pz(-1.0f, 12000.0f, 5000.0f, 8000.0f) == LV_ASCENT);
-    CHECK(lv_phase_for_pz(0.0f, 12000.0f, 5000.0f, 8000.0f) == LV_ASCENT);
-    CHECK(lv_phase_for_pz(LV_ATMO_END - 1.0f, 12000.0f, 5000.0f, 8000.0f) == LV_ASCENT);
-    CHECK(lv_phase_for_pz(LV_ATMO_END, 12000.0f, 5000.0f, 8000.0f) == LV_TRANSIT);
-    CHECK(lv_phase_for_pz(LV_MOON_Z - LV_MOON_ZONE - 1.0f, 12000.0f, 5000.0f, 8000.0f) == LV_TRANSIT);
-    CHECK(lv_phase_for_pz(LV_MOON_Z - LV_MOON_ZONE, 12000.0f, 5000.0f, 8000.0f) == LV_MOON);
-    CHECK(lv_phase_for_pz(LV_MOON_Z, 12000.0f, 5000.0f, 8000.0f) == LV_MOON);
-    CHECK(lv_phase_for_pz(LV_MOON_Z + LV_MOON_ZONE, 12000.0f, 5000.0f, 8000.0f) == LV_MOON);
-    CHECK(lv_phase_for_pz(LV_MOON_Z + LV_MOON_ZONE + 1.0f, 12000.0f, 5000.0f, 8000.0f) == LV_TRANSIT);
-    CHECK(lv_phase_for_pz(5000.0f - 1.0f, 12000.0f, 5000.0f, 8000.0f) == LV_TRANSIT);
-    CHECK(lv_phase_for_pz(5000.0f, 12000.0f, 5000.0f, 8000.0f) == LV_BELT);
-    CHECK(lv_phase_for_pz(8000.0f - 1.0f, 12000.0f, 5000.0f, 8000.0f) == LV_BELT);
-    CHECK(lv_phase_for_pz(8000.0f, 12000.0f, 5000.0f, 8000.0f) == LV_EXIT);
-    CHECK(lv_phase_for_pz(12000.0f - 1.0f, 12000.0f, 5000.0f, 8000.0f) == LV_EXIT);
-    CHECK(lv_phase_for_pz(12000.0f, 12000.0f, 5000.0f, 8000.0f) == LV_DONE);
-    CHECK(lv_phase_for_pz(12000.0f + 1.0f, 12000.0f, 5000.0f, 8000.0f) == LV_DONE);
+    CHECK(lv_phase_for_pz(-1.0f, ROUTE_LENGTH, BELT_START, BELT_END) == LV_ASCENT);
+    CHECK(lv_phase_for_pz(0.0f, ROUTE_LENGTH, BELT_START, BELT_END) == LV_ASCENT);
+    CHECK(lv_phase_for_pz(LV_ATMO_END - 1.0f, ROUTE_LENGTH, BELT_START, BELT_END) == LV_ASCENT);
+    CHECK(lv_phase_for_pz(LV_ATMO_END, ROUTE_LENGTH, BELT_START, BELT_END) == LV_TRANSIT);
+    CHECK(lv_phase_for_pz(LV_MOON_Z - LV_MOON_ZONE - 1.0f, ROUTE_LENGTH, BELT_START, BELT_END) == LV_TRANSIT);
+    CHECK(lv_phase_for_pz(LV_MOON_Z - LV_MOON_ZONE, ROUTE_LENGTH, BELT_START, BELT_END) == LV_MOON);
+    CHECK(lv_phase_for_pz(LV_MOON_Z, ROUTE_LENGTH, BELT_START, BELT_END) == LV_MOON);
+    CHECK(lv_phase_for_pz(LV_MOON_Z + LV_MOON_ZONE, ROUTE_LENGTH, BELT_START, BELT_END) == LV_MOON);
+    CHECK(lv_phase_for_pz(LV_MOON_Z + LV_MOON_ZONE + 1.0f, ROUTE_LENGTH, BELT_START, BELT_END) == LV_TRANSIT);
+    CHECK(lv_phase_for_pz(BELT_START - 1.0f, ROUTE_LENGTH, BELT_START, BELT_END) == LV_TRANSIT);
+    CHECK(lv_phase_for_pz(BELT_START, ROUTE_LENGTH, BELT_START, BELT_END) == LV_BELT);
+    CHECK(lv_phase_for_pz(BELT_END - 1.0f, ROUTE_LENGTH, BELT_START, BELT_END) == LV_BELT);
+    CHECK(lv_phase_for_pz(BELT_END, ROUTE_LENGTH, BELT_START, BELT_END) == LV_EXIT);
+    CHECK(lv_phase_for_pz(ROUTE_LENGTH - 1.0f, ROUTE_LENGTH, BELT_START, BELT_END) == LV_EXIT);
+    CHECK(lv_phase_for_pz(ROUTE_LENGTH, ROUTE_LENGTH, BELT_START, BELT_END) == LV_DONE);
+    CHECK(lv_phase_for_pz(ROUTE_LENGTH + 1.0f, ROUTE_LENGTH, BELT_START, BELT_END) == LV_DONE);
 }
 
 /* ------------------------------------------------------------------ */
@@ -110,10 +110,21 @@ static void test_tilt_profile(void)
 /* ------------------------------------------------------------------ */
 static void test_sling_quality(void)
 {
-    CHECK(fabsf(lv_sling_quality(0.0f) - 1.0f) < 1e-6f);
-    CHECK(fabsf(lv_sling_quality(LV_SLING_WIDTH) - 0.0f) < 1e-6f);
-    CHECK(fabsf(lv_sling_quality(LV_SLING_WIDTH / 2.0f) - 0.5f) < 1e-6f);
-    CHECK(lv_sling_quality(LV_SLING_WIDTH + 10.0f) == 0.0f);
+    CHECK(fabsf(lv_sling_quality(-10.0f) - 1.0f) < 1e-6f);
+    CHECK(fabsf(lv_sling_quality(LV_SLING_ALT_BEST) - 1.0f) < 1e-6f);
+    CHECK(fabsf(lv_sling_quality(LV_SLING_ALT_MAX) - 0.0f) < 1e-6f);
+    CHECK(fabsf(lv_sling_quality(0.5f * (LV_SLING_ALT_BEST + LV_SLING_ALT_MAX)) - 0.5f) < 1e-6f);
+    CHECK(lv_sling_quality(LV_SLING_ALT_MAX + 100.0f) == 0.0f);
+    /* Moon geometry: the guide path hugs the surface at LV_MOON_RING_ALT. */
+    float rx, ry;
+    CHECK(lv_moon_ring(0.0f, &rx, &ry) == 1);
+    CHECK(fabsf(lv_moon_alt(rx, ry, LV_MOON_Z) - LV_MOON_RING_ALT) < 0.5f);
+    CHECK(lv_moon_ring(LV_MOON_RING_SPAN, &rx, &ry) == 1);
+    CHECK(fabsf(lv_moon_alt(rx, ry, LV_MOON_Z + LV_MOON_RING_SPAN) - LV_MOON_RING_ALT) < 0.5f);
+    CHECK(rx < LV_MOON_LATERAL);
+    CHECK(lv_moon_ring(LV_MOON_RING_SPAN + 1.0f, &rx, &ry) == 0);
+    /* The route axis does not hit the Moon, and the ring path is reachable. */
+    CHECK(lv_moon_alt(0.0f, 0.0f, LV_MOON_Z) > LV_SLING_ALT_BEST);
 }
 
 /* ------------------------------------------------------------------ */
@@ -221,36 +232,44 @@ static void test_autopilot_atmosphere(void)
     CHECK(F.mode == FL_MODE_AUTOPILOT);
 }
 
-static void sling_at(float ox, float oy, int *good, int *ok, int *miss, float *dspeed, float *dfuel, int *again)
+static int sling_event_at(float alt, int *got_good, int *got_ok, int *got_miss, float *dspeed, float *dfuel)
 {
+    /* Place the ship just before the closest-approach plane at the given
+       altitude over the Moon surface (on the near side, y = 0). */
     flight_init(&F, SHIP_BALANCED, 4);
     F.mode = FL_MODE_MANUAL;
-    float lx, ly; lv_moon_xy(&F, LV_MOON_Z, &lx, &ly);
-    F.pz = LV_MOON_Z - 0.2f; F.px = lx + ox; F.py = ly + oy;
+    F.pz = LV_MOON_Z - 3.0f; F.py = 0.0f;
+    F.px = LV_MOON_CX - LV_MOON_RADIUS - alt;
     F.speed = 30.0f; F.throttle = 0.5f; F.fuel = F.spec->fuel_max * 0.5f;
     float s0 = F.speed, f0 = F.fuel;
-    flight_tick(&F);
-    *good = count_ev(&F, FL_EV_SLING_GOOD); 
-    /* events were drained by count_ev; recompute using a second identical run */
-    (void)ok; (void)miss;
+    int ticks = 0;
+    *got_good = *got_ok = *got_miss = 0;
+    while (F.pz < LV_MOON_Z + 30.0f && ticks++ < 600) {
+        flight_tick(&F);
+        int e;
+        while ((e = flight_event_take(&F)) != FL_EV_NONE) {
+            if (e == FL_EV_SLING_GOOD) (*got_good)++;
+            else if (e == FL_EV_SLING_OK) (*got_ok)++;
+            else if (e == FL_EV_SLING_MISS) (*got_miss)++;
+        }
+    }
     *dspeed = F.speed - s0; *dfuel = F.fuel - f0;
-    for (int i = 0; i < 300; i++) flight_tick(&F);
-    *again = 0; int e; while ((e = flight_event_take(&F)) != FL_EV_NONE) if (e >= FL_EV_SLING_GOOD && e <= FL_EV_SLING_MISS) (*again)++;
+    return ticks;
 }
 
 static void test_sling(void)
 {
-    int g, o, m, again; float ds, df;
-    sling_at(0.0f, 0.0f, &g, &o, &m, &ds, &df, &again);
-    CHECK(g == 1); CHECK(ds > 0.0f); CHECK(df > 0.0f); CHECK(again == 0);
-    /* Far outside the corridor: no bonus, miss event. */
-    flight_init(&F, SHIP_BALANCED, 4); F.mode = FL_MODE_MANUAL;
-    float lx, ly; lv_moon_xy(&F, LV_MOON_Z, &lx, &ly);
-    F.pz = LV_MOON_Z - 0.2f; F.px = lx + 200.0f; F.py = ly; F.speed = 30.0f; F.throttle = 0.5f;
-    float f0 = F.fuel;
-    flight_tick(&F);
-    CHECK(count_ev(&F, FL_EV_SLING_MISS) == 1);
-    CHECK(F.fuel <= f0);
+    int g, o, m; float ds, df;
+    /* Low pass: quality 1, one good event, speed and fuel go up. */
+    sling_event_at(120.0f, &g, &o, &m, &ds, &df);
+    CHECK(g == 1); CHECK(o == 0); CHECK(m == 0); CHECK(ds > 0.0f); CHECK(df > 0.0f);
+    /* Medium altitude: acceptable. */
+    sling_event_at(0.5f * (LV_SLING_ALT_BEST + LV_SLING_ALT_MAX), &g, &o, &m, &ds, &df);
+    CHECK(g == 0); CHECK(o == 1); CHECK(m == 0);
+    /* High pass: miss, no gain beyond the throttle target. */
+    sling_event_at(LV_SLING_ALT_MAX + 100.0f, &g, &o, &m, &ds, &df);
+    CHECK(g == 0); CHECK(o == 0); CHECK(m == 1);
+    CHECK(df <= 0.0f);
 }
 
 static void test_tilt(void)
@@ -286,7 +305,8 @@ static void test_tilt(void)
 
 static void test_checkpoint_phases(void)
 {
-    float zs[] = { 300.0f, 1500.0f, 2990.0f, 3010.0f, 6000.0f };
+    /* Points in ascent, transit, and after lunar zone (avoiding lunar zone itself). */
+    float zs[] = { 300.0f, 1500.0f, 4000.0f, 9500.0f, 11000.0f };
     for (int k = 0; k < 5; k++) {
         flight_init(&F, SHIP_BALANCED, 11);
         F.mode = FL_MODE_AUTOPILOT; F.pz = zs[k]; F.speed = 40.0f; F.throttle = 0.6f; F.tilt_angle = (zs[k] < LV_ATMO_END) ? 0.8f : 0.0f;
@@ -312,10 +332,6 @@ static void test_instances_independent(void)
     for (int i = 0; i < 1200; i++) flight_tick(&a);
     for (int i = 0; i < 1200; i++) flight_tick(&b);
     CHECK(flight_checksum(&a) == flight_checksum(&b));
-    int na = 0, nb = 0, e;
-    while ((e = flight_event_take(&a)) != FL_EV_NONE) if (e >= FL_EV_SLING_GOOD && e <= FL_EV_SLING_MISS) na++;
-    while ((e = flight_event_take(&b)) != FL_EV_NONE) if (e >= FL_EV_SLING_GOOD && e <= FL_EV_SLING_MISS) nb++;
-    CHECK(na == 1 && nb == 1);
 }
 
 /* ------------------------------------------------------------------ */
@@ -443,6 +459,144 @@ static void test_checkpoint_ascent(void)
 }
 
 /* ------------------------------------------------------------------ */
+/* Lunar phase tests                                                  */
+/* ------------------------------------------------------------------ */
+
+static void place_before_zone(Flight *f, unsigned seed)
+{
+    flight_init(f, SHIP_BALANCED, seed);
+    f->mode = FL_MODE_MANUAL;
+    f->pz = LV_MOON_Z - LV_MOON_ZONE - 20.0f; f->px = 0.0f; f->py = 0.0f;
+    f->speed = 80.0f; f->throttle = 1.0f;
+}
+
+static void test_moon_collision(void)
+{
+    /* Straight at the surface: hull damage once per contact, never negative. */
+    place_before_zone(&F, 7);
+    float hull0 = F.hull;
+    int hits = 0;
+    for (int i = 0; i < 60 * 300 && F.pz < LV_MOON_Z + 500.0f && F.mode == FL_MODE_MANUAL; i++) {
+        float err = (LV_MOON_CX - 100.0f) - F.px;
+        flight_input(&F, FL_YAW_RIGHT, err > 20.0f && F.yaw < 0.5f);
+        flight_tick(&F);
+        hits += count_ev(&F, FL_EV_MOON_COLLISION);
+    }
+    CHECK(hits >= 1);
+    CHECK(F.hull < hull0);
+    CHECK(lv_moon_alt(F.px, F.py, F.pz) >= 0.0f);   /* never inside the Moon */
+    CHECK(lv_moon_collision_damage(&F) > 0.0f && lv_moon_collision_damage(&F) <= 1.0f);
+}
+
+static void test_moon_warn_alt(void)
+{
+    flight_init(&F, SHIP_BALANCED, 7);
+    F.mode = FL_MODE_MANUAL; F.pz = LV_MOON_Z;
+    F.px = LV_MOON_CX - LV_MOON_RADIUS - 100.0f; F.py = 0.0f;
+    float alt = flight_stat(&F, FS_MOON_ALT);
+    CHECK(fabsf(alt - 100.0f) < 1.0f);
+    CHECK(flight_stat(&F, FS_SLING_QUALITY) > 0.99f);
+    F.pz = LV_MOON_Z - LV_MOON_ZONE - 500.0f;
+    CHECK(flight_stat(&F, FS_MOON_ALT) == 0.0f);   /* outside the zone */
+}
+
+static void test_moon_sling_gain(void)
+{
+    /* A low pass gives more speed and fuel than a far pass, spread in time. */
+    Flight lo, hi;
+    place_before_zone(&lo, 7); place_before_zone(&hi, 7);
+    float fuel_lo0 = lo.fuel, fuel_hi0 = hi.fuel;
+    float vmax_lo = 0.0f, vmax_hi = 0.0f; int ev_lo = 0, ev_hi = 0;
+    for (int i = 0; i < 60 * 300 && (lo.pz < LV_MOON_Z + LV_MOON_ZONE || hi.pz < LV_MOON_Z + LV_MOON_ZONE); i++) {
+        float rx, ry;
+        float target_lo = lv_moon_ring(lo.pz - LV_MOON_Z, &rx, &ry) ? rx : 350.0f;
+        flight_input(&lo, FL_YAW_RIGHT, target_lo - lo.px > 25.0f && lo.yaw < 0.35f);
+        flight_input(&lo, FL_YAW_LEFT, target_lo - lo.px < -25.0f && lo.yaw > -0.35f);
+        flight_input(&hi, FL_YAW_LEFT, hi.px > 0.0f);
+        lo.throttle = hi.throttle = 0.6f;
+        if (lo.pz < LV_MOON_Z + LV_MOON_ZONE) { flight_tick(&lo); ev_lo += count_ev(&lo, FL_EV_SLING_GOOD) + count_ev(&lo, FL_EV_SLING_OK) * 10; if (lo.speed > vmax_lo) vmax_lo = lo.speed; }
+        if (hi.pz < LV_MOON_Z + LV_MOON_ZONE) { flight_tick(&hi); ev_hi += count_ev(&hi, FL_EV_SLING_MISS) + count_ev(&hi, FL_EV_SLING_OK) * 10; if (hi.speed > vmax_hi) vmax_hi = hi.speed; }
+    }
+    CHECK(vmax_lo > vmax_hi + 5.0f);
+    CHECK(lo.fuel - fuel_lo0 > hi.fuel - fuel_hi0);
+    CHECK(ev_lo >= 1);                /* a sling summary was reported */
+    CHECK(lo.hull == lo.spec->hull_max);   /* following the ring path never touches the Moon */
+}
+
+static void test_lunar_phase_duration(void)
+{
+    /* Phase lunar duration at cruise speed (autopilot cap 0.6) and max speed,
+       using the balanced ship. */
+    /* Cruise (autopilot throttle cap). */
+    flight_init(&F, SHIP_BALANCED, 7);
+    F.mode = FL_MODE_AUTOPILOT;
+    int entry_tick = -1, exit_tick = -1, ticks = 0;
+    while (ticks++ < 60 * 600) {
+        int phase_before = (int)flight_stat(&F, FS_PHASE);
+        flight_tick(&F);
+        int phase_after = (int)flight_stat(&F, FS_PHASE);
+        if (phase_before != 3 && phase_after == 3) entry_tick = ticks;
+        if (phase_before == 3 && phase_after != 3) { exit_tick = ticks; break; }
+    }
+    CHECK(entry_tick >= 0 && exit_tick >= 0);
+    {
+        float dur = (exit_tick - entry_tick) / 60.0f;
+        printf("cruise lunar duration=%.1f s\n", dur);
+        CHECK(dur >= 45.0f && dur <= 75.0f);
+    }
+
+    /* Max speed. */
+    flight_init(&F, SHIP_BALANCED, 7);
+    F.mode = FL_MODE_MANUAL; F.throttle = 1.0f;
+    entry_tick = -1; exit_tick = -1; ticks = 0;
+    while (ticks++ < 60 * 600) {
+        int phase_before = (int)flight_stat(&F, FS_PHASE);
+        flight_tick(&F);
+        int phase_after = (int)flight_stat(&F, FS_PHASE);
+        if (phase_before != 3 && phase_after == 3) entry_tick = ticks;
+        if (phase_before == 3 && phase_after != 3) { exit_tick = ticks; break; }
+    }
+    CHECK(entry_tick >= 0 && exit_tick >= 0);
+    {
+        float dur = (exit_tick - entry_tick) / 60.0f;
+        printf("max lunar duration=%.1f s\n", dur);
+        CHECK(dur >= 40.0f && dur <= 75.0f);
+    }
+}
+
+static void test_autopilot_lunar_zone(void)
+{
+    /* Autopilot stays active in the lunar zone (follows arc, no full sling bonus). */
+    flight_init(&F, SHIP_BALANCED, 7);
+    F.mode = FL_MODE_AUTOPILOT; F.throttle = 0.6f;
+    /* Advance into the lunar zone. */
+    int ticks = 0;
+    while (F.pz < LV_MOON_Z - LV_MOON_ZONE && ticks++ < 60 * 600) {
+        flight_tick(&F);
+    }
+    CHECK(F.pz >= LV_MOON_Z - LV_MOON_ZONE);
+    /* Autopilot should still be active (not yielded). */
+    CHECK(F.mode == FL_MODE_AUTOPILOT);
+}
+
+static void test_checkpoint_lunar_arc(void)
+{
+    /* Checkpoint round-trip at the middle of the lunar arc. */
+    flight_init(&F, SHIP_BALANCED, 11);
+    F.mode = FL_MODE_MANUAL;
+    F.pz = LV_MOON_Z;
+    F.throttle = 0.5f;
+    /* Advance into the zone. */
+    while (F.pz < LV_MOON_Z - LV_MOON_ZONE) flight_tick(&F);
+    Checkpoint cp; Flight a, b;
+    if (cp_capture(&F, &cp) != CP_OK) { CHECK(0); }
+    CHECK(cp_restore(&cp, &a) == CP_OK);
+    b = F;
+    for (int i = 0; i < 300; i++) { flight_tick(&a); flight_tick(&b); }
+    CHECK(flight_checksum(&a) == flight_checksum(&b));
+}
+
+/* ------------------------------------------------------------------ */
 /* main                                                               */
 /* ------------------------------------------------------------------ */
 int main(void)
@@ -465,6 +619,12 @@ int main(void)
     test_platform_stationary();
     test_tilt_penalty_ascent();
     test_checkpoint_ascent();
+    test_moon_collision();
+    test_moon_warn_alt();
+    test_moon_sling_gain();
+    test_lunar_phase_duration();
+    test_autopilot_lunar_zone();
+    test_checkpoint_lunar_arc();
     printf("%d checks, %d failures\n", checks, failures);
     return failures ? 1 : 0;
 }

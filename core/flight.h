@@ -17,7 +17,7 @@
 #define FL_LANE_HALF      70.0f    /* lane half width outside the belt / at belt edges */
 #define FL_LANE_HALF_BELT 45.0f    /* lane half width at the centre of the belt */
 #define FL_LANE_TRANSITION 300.0f  /* transition distance at each belt edge */
-#define FL_GENERATOR_VERSION 3
+#define FL_GENERATOR_VERSION 4
 #define FL_TAMPER_COUNT   4        /* number of blockage walls in the belt */
 #define FL_TAMPER_RADIUS_CENTRAL_LO 26.0f
 #define FL_TAMPER_RADIUS_CENTRAL_HI 30.0f
@@ -42,7 +42,7 @@ enum FlEvent { FL_EV_NONE = 0, FL_EV_FIRE, FL_EV_ROCK_BREAK, FL_EV_HIT, FL_EV_WA
                FL_EV_LOW_FUEL, FL_EV_HULL_CRITICAL, FL_EV_ARRIVED, FL_EV_DESTROYED,
                FL_EV_STRANDED, FL_EV_PHASE_ATMO_EXIT, FL_EV_PHASE_MOON,
                FL_EV_SLING_GOOD, FL_EV_SLING_OK, FL_EV_SLING_MISS, FL_EV_TILT_WARNING,
-               FL_EV_COUNT };
+               FL_EV_MOON_COLLISION, FL_EV_COUNT };
 
 typedef struct {
     float length;       /* distance units */
@@ -102,7 +102,7 @@ enum FlStat {
     FS_PILOT_DAYS, FS_EARTH_DAYS, FS_ROUTE_DAYS, FS_DISTANCE_LEFT, FS_MODE, FS_ALERT,
     FS_IN_BELT, FS_ROCKS_ALIVE, FS_SENSOR_RANGE, FS_SHAKE, FS_LASER_FLASH,
     FS_PHASE, FS_ALTITUDE, FS_ATMO_DENSITY, FS_ASCENT_ANGLE, FS_SLING_OFFSET,
-    FS_SLING_QUALITY, FS_MOON_DISTANCE, FS_COUNT
+    FS_SLING_QUALITY, FS_MOON_DISTANCE, FS_MOON_ALT, FS_COUNT
 };
 float flight_stat(const Flight *f, int id);
 #endif

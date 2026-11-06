@@ -129,42 +129,95 @@ static void draw_earth(Scene *s, const View *v, const Flight *f)
     }
 }
 
-/* The Moon sits at a fixed world position beside the reference corridor so the
-   pilot flies past it. It is visible from far away and approaches as pz grows. */
-static void draw_moon(Scene *s, const View *v, const Flight *f)
+/* The Moon is a giant wireframe sphere fixed in the world (see lv_moon_center).
+   Only the hemisphere facing the ship is drawn. It is visible from the end of
+   the atmosphere until the ship has passed it. */
+#define MOON_PAR 11     /* parallels */
+#define MOON_MER 16     /* meridians */
+#define MOON_STEPS 20   /* segments per parallel or meridian */
+
+static int moon_front(const Flight *f, float mx, float my, float mz, float wx, float wy, float wz)
 {
-    float lx, ly;
-    if (!lv_moon_xy(f, LV_MOON_Z, &lx, &ly)) return;
-    float mz = LV_MOON_Z + 150.0f;
-    float ahead = mz - f->pz;
-    if (ahead < -400.0f || ahead > 2600.0f) return;
-    float moon_r = 140.0f;
-    float mx = lx + moon_r + 130.0f, my = ly;
-    float verts[12][3];
-    for (int i = 0; i < 12; i++) {
-        float jit = 0.92f + 0.08f * (float)(rng_hash(1000u + (unsigned)i * 7919u) & 0xff) / 255.0f;
-        float x = ico_v[i][0] * jit * moon_r, y = ico_v[i][1] * jit * moon_r, z = ico_v[i][2] * jit * moon_r;
-        to_view(v, mx + x, my + y, mz + z, verts[i], 1);
-    }
-    for (int e = 0; e < 30; e++) add_seg(s, verts[ico_e[e][0]], verts[ico_e[e][1]], SC_MOON);
+    /* Front-facing if the surface normal points towards the ship. */
+    float nx = wx - mx, ny = wy - my, nz = wz - mz;
+    float sx = f->px - wx, sy = f->py - wy, sz = f->pz - wz;
+    return nx * sx + ny * sy + nz * sz > 0.0f;
 }
 
+static void moon_seg(Scene *s, const View *v, const Flight *f, const float c[3],
+                     const float a[3], const float b[3])
+{
+    float mid[3] = { (a[0] + b[0]) * 0.5f, (a[1] + b[1]) * 0.5f, (a[2] + b[2]) * 0.5f };
+    if (!moon_front(f, c[0], c[1], c[2], mid[0], mid[1], mid[2])) return;
+    float va[3], vb[3];
+    to_view(v, a[0], a[1], a[2], va, 1);
+    to_view(v, b[0], b[1], b[2], vb, 1);
+    add_seg(s, va, vb, SC_MOON);
+}
+
+static void moon_point(const float c[3], float r, float lat, float lon, float out[3])
+{
+    out[0] = c[0] + r * cosf(lat) * cosf(lon);
+    out[1] = c[1] + r * sinf(lat);
+    out[2] = c[2] + r * cosf(lat) * sinf(lon);
+}
+
+static void draw_moon(Scene *s, const View *v, const Flight *f)
+{
+    if (f->pz < LV_ATMO_END || f->pz > LV_MOON_Z + LV_MOON_RADIUS + 400.0f) return;
+    float c[3]; lv_moon_center(&c[0], &c[1], &c[2]);
+    const float r = LV_MOON_RADIUS;
+    const float pi = 3.1415926f;
+    /* parallels */
+    for (int i = 1; i <= MOON_PAR; i++) {
+        float lat = -pi * 0.5f + pi * (float)i / (float)(MOON_PAR + 1);
+        float prev[3]; moon_point(c, r, lat, 0.0f, prev);
+        for (int j = 1; j <= MOON_STEPS; j++) {
+            float cur[3]; moon_point(c, r, lat, 2.0f * pi * (float)j / (float)MOON_STEPS, cur);
+            moon_seg(s, v, f, c, prev, cur);
+            memcpy(prev, cur, sizeof cur);
+        }
+    }
+    /* meridians */
+    for (int k = 0; k < MOON_MER; k++) {
+        float lon = 2.0f * pi * (float)k / (float)MOON_MER;
+        float prev[3]; moon_point(c, r, -pi * 0.5f, lon, prev);
+        for (int j = 1; j <= MOON_STEPS; j++) {
+            float cur[3]; moon_point(c, r, -pi * 0.5f + pi * (float)j / (float)MOON_STEPS, lon, cur);
+            moon_seg(s, v, f, c, prev, cur);
+            memcpy(prev, cur, sizeof cur);
+        }
+    }
+    /* craters: small circles on the sphere at fixed, deterministic places */
+    for (int n = 0; n < 6; n++) {
+        float clat = (-0.9f + 1.8f * (float)(rng_hash(300u + (unsigned)n * 31u) & 0xff) / 255.0f) * 0.9f;
+        float clon = 2.0f * pi * (float)(rng_hash(500u + (unsigned)n * 17u) & 0xff) / 255.0f;
+        float cr = 0.06f + 0.05f * (float)(rng_hash(700u + (unsigned)n * 13u) & 0xff) / 255.0f;   /* angular radius */
+        float prev[3] = {0, 0, 0}; int have = 0;
+        for (int j = 0; j <= 14; j++) {
+            float a = 2.0f * pi * (float)j / 14.0f;
+            float lat = clat + cr * sinf(a), lon = clon + cr * cosf(a) / (cosf(clat) > 0.2f ? cosf(clat) : 0.2f);
+            float cur[3]; moon_point(c, r, lat, lon, cur);
+            if (have) moon_seg(s, v, f, c, prev, cur);
+            memcpy(prev, cur, sizeof cur); have = 1;
+        }
+    }
+}
+
+/* Guide rings along the circle that hugs the surface: following them keeps the
+   ship low over the Moon for the whole pass. */
 static void draw_guide_rings(Scene *s, const View *v, const Flight *f)
 {
-    if (f->pz < LV_MOON_Z - LV_MOON_ZONE || f->pz > LV_MOON_Z + LV_MOON_ZONE) return;
-    int n_rings = 10;
-    float zone = LV_MOON_ZONE * 2.0f;
+    if (!lv_moon_in_zone(f->pz)) return;
+    const int n_rings = 10;
     for (int i = 0; i < n_rings; i++) {
-        float z = LV_MOON_Z - LV_MOON_ZONE + zone * (float)i / (float)(n_rings - 1);
-        float lx, ly;
-        if (!lv_moon_xy(f, z, &lx, &ly)) continue;
+        float u = -LV_MOON_RING_SPAN + 2.0f * LV_MOON_RING_SPAN * (float)i / (float)(n_rings - 1);
+        float z = LV_MOON_Z + u, lx, ly;
+        if (!lv_moon_ring(u, &lx, &ly)) continue;
         float ahead = z - f->pz;
-        if (ahead <= 0.0f) continue;
-        float rad = 35.0f;
-        float bright = 1.0f - ahead / zone;
-        if (bright <= 0.05f) continue;
-        draw_ring(s, v, lx, ly, z, rad, 2, 10, SC_GUIDE);
-        draw_ring(s, v, lx, ly, z, rad, 1, 10, SC_GUIDE);
+        if (ahead <= 0.0f || ahead > 1500.0f) continue;
+        draw_ring(s, v, lx, ly, z, 45.0f, 2, 12, SC_GUIDE);
+        draw_ring(s, v, lx, ly, z, 22.0f, 2, 12, SC_GUIDE);
     }
 }
 

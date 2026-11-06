@@ -17,7 +17,7 @@ assert(Story.textForPhase(Story.LV_EXIT) === "", "exit phase empty");
 assert(Story.textForPhase(Story.LV_DONE) === "", "done phase empty");
 
 /* --- textForEvent: every event id returns a string --- */
-for (const ev of [13, 14, 15, 16, 17, 18]) {
+for (const ev of [13, 14, 15, 16, 17, 18, 19]) {
   const t = Story.textForEvent(ev);
   assert.strictEqual(typeof t, "string", "textForEvent(" + ev + ") not a string");
 }
@@ -27,15 +27,17 @@ assert(Story.textForEvent(15).indexOf("Fisga") >= 0, "sling good event");
 assert(Story.textForEvent(16).indexOf("Fisga") >= 0, "sling ok event");
 assert(Story.textForEvent(17).indexOf("Fisga") >= 0, "sling miss event");
 assert(Story.textForEvent(18).indexOf("Inclina") >= 0, "tilt warning event");
+assert(Story.textForEvent(19).indexOf("Perigo") >= 0, "moon collision event");
 assert(Story.textForEvent(0) === "", "unknown event empty");
 assert(Story.textForEvent(99) === "", "invalid event empty");
 
 /* --- accents in expected strings --- */
 assert(Story.textForPhase(Story.LV_ASCENT).indexOf("inclina\u00e7\u00e3o") >= 0, "inclina\u00e7\u00e3o accent");
 assert(Story.textForEvent(18).indexOf("combust\u00edvel") >= 0, "combust\u00edvel accent");
-assert(Story.textForPhase(Story.LV_MOON).indexOf("cientistas terrestres") >= 0, "moon text");
+assert(Story.textForPhase(Story.LV_MOON).indexOf("Contorne") >= 0, "moon text");
 assert(Story.textForEvent(15).indexOf("perfeita") >= 0, "sling good text");
 assert(Story.textForEvent(17).indexOf("falhada") >= 0, "sling miss text");
+assert(Story.textForEvent(19).indexOf("superf\u00edcie") >= 0, "moon warn accent");
 
 /* --- no invalid characters: every string is valid UTF-8 --- */
 function checkValid(s) {
@@ -47,7 +49,8 @@ const allTexts = [
   Story.textForPhase(Story.LV_ASCENT), Story.textForPhase(Story.LV_ATMO_EXIT),
   Story.textForPhase(Story.LV_TRANSIT), Story.textForPhase(Story.LV_MOON),
   Story.textForEvent(13), Story.textForEvent(14), Story.textForEvent(15),
-  Story.textForEvent(16), Story.textForEvent(17), Story.textForEvent(18)
+  Story.textForEvent(16), Story.textForEvent(17), Story.textForEvent(18),
+  Story.textForEvent(19)
 ];
 for (const t of allTexts) checkValid(t);
 
@@ -62,7 +65,7 @@ assert.strictEqual(Story.hintForState(s), "Plataforma de lan\u00e7amento. Aument
 assert(Story.hintForState(s).indexOf("Plataforma") >= 0, "platform text");
 
 /* Ascent: phase 0 -> ASCENT */
-s = makeStats({ 23: 0, 24: 1250, 0: 10, 26: Math.PI / 4 });
+s = makeStats({ 23: 0, 24: 350, 0: 10, 26: (Math.PI / 2) * (1 - 350 / 2500) });
 assert.strictEqual(Story.hintForState(s), Story.textForPhase(0), "ascent hint");
 assert(Story.hintForState(s).indexOf("subida") >= 0, "ascent text");
 
@@ -72,21 +75,26 @@ assert.strictEqual(Story.hintForState(s), Story.textForEvent(18), "tilt warning 
 assert(Story.hintForState(s).indexOf("Inclina\u00e7\u00e3o") >= 0, "tilt warning text");
 
 /* Atmo exit: phase 1 -> ATMO_EXIT */
-s = makeStats({ 23: 1, 24: 700, 0: 50 });
+s = makeStats({ 23: 1, 24: 2500, 0: 50 });
 assert.strictEqual(Story.hintForState(s), Story.textForEvent(13), "atmo exit hint");
 
 /* Transit: phase 2 -> TRANSIT */
-s = makeStats({ 23: 2, 24: 700, 0: 50 });
+s = makeStats({ 23: 2, 24: 2500, 0: 50 });
 assert.strictEqual(Story.hintForState(s), Story.textForPhase(2), "transit hint");
 assert(Story.hintForState(s).indexOf("Lua") >= 0, "transit text");
 
-/* Moon: phase 3 -> MOON */
-s = makeStats({ 23: 3, 24: 700, 0: 50 });
-assert.strictEqual(Story.hintForState(s), Story.textForEvent(14), "moon hint");
-assert(Story.hintForState(s).indexOf("Lua") >= 0, "moon text");
+/* Moon: phase 3 -> MOON_GUIDE */
+s = makeStats({ 23: 3, 24: 2500, 0: 50, 30: 500 });
+assert.strictEqual(Story.hintForState(s), Story.textForPhase(Story.LV_MOON), "moon guide hint");
+assert(Story.hintForState(s).indexOf("Contorne") >= 0, "moon guide text");
+
+/* Moon proximity warning: phase 3, moonAlt < 150 -> MOON_WARN */
+s = makeStats({ 23: 3, 24: 2500, 0: 50, 30: 100 });
+assert.strictEqual(Story.hintForState(s), Story.textForEvent(19), "moon warn hint");
+assert(Story.hintForState(s).indexOf("Perigo") >= 0, "moon warn text");
 
 /* Belt: phase 4 -> empty */
-s = makeStats({ 23: 4, 24: 700, 0: 50 });
+s = makeStats({ 23: 4, 24: 2500, 0: 50 });
 assert.strictEqual(Story.hintForState(s), "", "belt hint empty");
 
 /* Unknown phase -> empty */
