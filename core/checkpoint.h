@@ -18,7 +18,8 @@ typedef struct {
     float throttle, speed;
     float fuel, hull, energy;
     unsigned int rocks_alive_lo; /* bit i = rock i alive, rocks 0..31 */
-    unsigned int rocks_alive_hi; /* rocks 32..47 */
+    unsigned int rocks_alive_hi; /* rocks 32..63 */
+    unsigned int rocks_alive_extra; /* rocks 64..95 */
 } Checkpoint;
 
 enum CpResult { CP_OK = 1, CP_INVALID = -1, CP_UNAVAILABLE = -2 };

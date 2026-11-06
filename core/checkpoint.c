@@ -2,6 +2,8 @@
 #include <math.h>
 #include <string.h>
 
+static unsigned int cp_word(const Checkpoint *cp, int i);
+
 int cp_validate(const Checkpoint *cp)
 {
     if (cp == NULL) return CP_INVALID;
@@ -34,15 +36,18 @@ int cp_validate(const Checkpoint *cp)
     if (cp->hull <= 0.0f || cp->hull > s->hull_max) return CP_INVALID;
     if (cp->energy < 0.0f || cp->energy > s->energy_max) return CP_INVALID;
 
-    /* Bits de rochas acima de rock_total da rota gerada pela seed devem ser zero. */
-    for (int i = tmp.rock_total; i < 32; i++) {
-        if (cp->rocks_alive_lo & (1u << i)) return CP_INVALID;
-    }
-    for (int i = (tmp.rock_total > 32 ? tmp.rock_total - 32 : 0); i < 32; i++) {
-        if (cp->rocks_alive_hi & (1u << i)) return CP_INVALID;
+    /* Alive bits at or above rock_total must be zero. */
+    for (int i = tmp.rock_total; i < 96; i++) {
+        if (cp_word(cp, i) & (1u << (i % 32))) return CP_INVALID;
     }
 
     return CP_OK;
+}
+
+/* Alive bits live in three 32-bit words (rocks 0..95). */
+static unsigned int cp_word(const Checkpoint *cp, int i)
+{
+    return i < 32 ? cp->rocks_alive_lo : (i < 64 ? cp->rocks_alive_hi : cp->rocks_alive_extra);
 }
 
 int cp_capture(const Flight *f, Checkpoint *out)
@@ -64,10 +69,12 @@ int cp_capture(const Flight *f, Checkpoint *out)
 
     out->rocks_alive_lo = 0u;
     out->rocks_alive_hi = 0u;
-    for (int i = 0; i < f->rock_total; i++) {
+    out->rocks_alive_extra = 0u;
+    for (int i = 0; i < f->rock_total && i < 96; i++) {
         if (f->rocks[i].alive) {
             if (i < 32) out->rocks_alive_lo |= (1u << i);
-            else out->rocks_alive_hi |= (1u << (i - 32));
+            else if (i < 64) out->rocks_alive_hi |= (1u << (i - 32));
+            else out->rocks_alive_extra |= (1u << (i - 64));
         }
     }
     return CP_OK;
@@ -95,9 +102,7 @@ int cp_restore(const Checkpoint *cp, Flight *out)
     tmp.yaw_rate = 0.0f;
     tmp.pitch_rate = 0.0f;
     for (int i = 0; i < tmp.rock_total; i++) {
-        unsigned int bit = (i < 32) ? (1u << i) : (1u << (i - 32));
-        unsigned int word = (i < 32) ? cp->rocks_alive_lo : cp->rocks_alive_hi;
-        tmp.rocks[i].alive = (word & bit) ? 1 : 0;
+        tmp.rocks[i].alive = (cp_word(cp, i) & (1u << (i % 32))) ? 1 : 0;
     }
 
     *out = tmp;

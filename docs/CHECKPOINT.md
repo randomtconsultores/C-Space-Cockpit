@@ -27,7 +27,8 @@ typedef struct {
     float throttle, speed;
     float fuel, hull, energy;
     unsigned int rocks_alive_lo; /* bit i = rock i alive, rocks 0..31 */
-    unsigned int rocks_alive_hi; /* rocks 32..47 */
+    unsigned int rocks_alive_hi; /* rocks 32..63 */
+    unsigned int rocks_alive_extra; /* rocks 64..95 */
 } Checkpoint;
 
 enum CpResult { CP_OK = 1, CP_INVALID = -1, CP_UNAVAILABLE = -2 };
@@ -48,7 +49,8 @@ enum CpResult { CP_OK = 1, CP_INVALID = -1, CP_UNAVAILABLE = -2 };
 | `speed` | Current speed. |
 | `fuel, hull, energy` | Fuel, hull integrity, energy. |
 | `rocks_alive_lo` | Bit i = rock i alive (rocks 0..31). |
-| `rocks_alive_hi` | Bit i-32 = rock i alive (rocks 32..47). |
+| `rocks_alive_extra` | Bit i-64 = rock i alive (rocks 64..95). |
+| `rocks_alive_hi` | Bit i-32 = rock i alive (rocks 32..63). |
 
 ## Functions
 
@@ -124,3 +126,4 @@ Never change version 1. To add fields or change semantics:
 - Rock hit points are not stored: a rock that was damaged but alive is restored with full hit points. Rock rotation angle is also not stored (visual only). Acceptable for M7 groundwork; revisit if damaged rocks must persist.
 - Only a single route is covered. Route/world state, post flags, mind copy and debt arrive with later versions of the DTO (bump CP_VERSION and add a migration; never edit version 1).
 - `yaw_rate` and `pitch_rate` (damped rotation, M2) are not part of the DTO: the format is unchanged and restore sets them to 0. They are re-derived from inputs after resume, so this does not affect correctness.
+- The DTO stores rock-alive bits for up to 96 rocks (3 words: lo, hi, extra). `rocks_alive_extra` holds bits 64..95 and was added when FL_MAX_ROCKS was raised to 96 for M2 belt difficulty. It is restored on `cp_restore`.

@@ -64,4 +64,29 @@ WASM was built with Emscripten 6.0.13 and loaded in headless Chromium (SwiftShad
 
 ## Rotação (M2)
 
-A rotação manual usa inércia amortecida: `yaw_rate` e `pitch_rate` (rad/s) aproximam-se de `+-turn_rate` com `turn_accel` enquanto a tecla está premida e amortecem para 0 com `turn_damp` quando solta, usando `approach` existente. Os valores vivem em `ShipSpec.turn_accel` / `ShipSpec.turn_damp` (placeholders de balanço) e `turn_rate` continua a ser a velocidade angular máxima. Ao tocar `FL_MAX_ANGLE` a taxa desse eixo fica a 0 (sem ricochete). O piloto automático mantém a approach direta e, ao passar para manual, as taxas começam a 0. Em estados terminais (chegar, destruir, sem combustível) as taxas são colocadas a 0. Não é guardado no checkpoint (formato inalterado); veja `docs/CHECKPOINT.md`.
+Manual rotation uses damped inertia: `yaw_rate` and `pitch_rate` (rad/s)
+approach `+-turn_rate` with `turn_accel` while a turn key is held, and decay to
+0 with `turn_damp` when released, reusing the existing `approach`. Values live
+in `ShipSpec.turn_accel` / `ShipSpec.turn_damp` (balance placeholders) and
+`turn_rate` remains the maximum angular velocity. Touching `FL_MAX_ANGLE` sets
+that axis rate to 0 (no bounce). Autopilot keeps the direct approach and rates
+start at 0 when switching to manual. In terminal states (arrived, destroyed,
+stranded) rates are set to 0. Not stored in the checkpoint (format unchanged);
+see `docs/CHECKPOINT.md`.
+
+## Faixa de asteroides e tampões (M2)
+
+The asteroid belt (z from 5000 to 8000) is narrower and more dangerous:
+- `FL_LANE_HALF` narrows from 70 to `FL_LANE_HALF_BELT` (45) at the centre of
+  the belt, with a `FL_LANE_TRANSITION` (300) unit ease at each belt edge.
+- Four `tamper` walls block the lane at regular z intervals. Each wall is three
+  overlapping rocks: a central rock (hp 3, radius 26-30) and two side rocks
+  (hp 2, radius 20-26). The gaps between neighbouring rocks are smaller than
+  `2*(FL_SHIP_RADIUS + 3)`, so the lane is impassable without destroying at
+  least the central rock of a wall. Destroying the central rock opens a gap
+  wide enough for the ship.
+- Rocks outside tamper walls are larger (radius 10-36, hp = 1 + radius/12).
+- `FL_MAX_ROCKS` raised to 96 and `rock_count` to 64. `SCENE_MAX_SEGS` raised
+  to 4096 to hold 96 rocks * 30 edges plus guides and the planet.
+- Checkpoint DTO stores rock-alive bits for up to 96 rocks (lo/hi/extra words);
+  `FL_GENERATOR_VERSION` bumped to 2.

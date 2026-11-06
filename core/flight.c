@@ -25,29 +25,128 @@ int flight_event_take(Flight *f)
 float flight_lane_x(const Flight *f, float z) { return 120.0f * sinf(z * 0.0040f + f->lane_phase_x); }
 float flight_lane_y(const Flight *f, float z) { return  80.0f * sinf(z * 0.0033f + f->lane_phase_y); }
 
-/* Rocks never occupy the lane, so every generated belt is passable. */
+float flight_lane_half_at(const Flight *f, float z)
+{
+    float half = FL_LANE_HALF_BELT;
+    if (z >= f->route.belt_start && z < f->route.belt_start + FL_LANE_TRANSITION) {
+        float t = (z - f->route.belt_start) / FL_LANE_TRANSITION;
+        half = FL_LANE_HALF * (1.0f - t) + FL_LANE_HALF_BELT * t;
+    }
+    else if (z >= f->route.belt_end - FL_LANE_TRANSITION && z <= f->route.belt_end) {
+        float t = (z - (f->route.belt_end - FL_LANE_TRANSITION)) / FL_LANE_TRANSITION;
+        half = FL_LANE_HALF_BELT * (1.0f - t) + FL_LANE_HALF * t;
+    }
+    return half;
+}
+
+/* Lane centre position at z. */
+static void lane_at(const Flight *f, float z, float *lx, float *ly)
+{
+    *lx = flight_lane_x(f, z);
+    *ly = flight_lane_y(f, z);
+}
+
+/* Unit vector perpendicular to the lane direction at z, in the x/y plane. */
+static void lane_perp(const Flight *f, float z, float *px, float *py)
+{
+    float eps = 1.0f;
+    float lx0, ly0, lx1, ly1;
+    lane_at(f, z - eps, &lx0, &ly0);
+    lane_at(f, z + eps, &lx1, &ly1);
+    float dx = lx1 - lx0, dy = ly1 - ly0;
+    float len = sqrtf(dx * dx + dy * dy);
+    if (len < 1e-6f) { *px = 1.0f; *py = 0.0f; return; }
+    /* perpendicular: (-dy, dx) */
+    *px = -dy / len;
+    *py = dx / len;
+}
+
+/* Rocks never occupy the lane, except inside tamper walls which deliberately
+   block it. */
 static void generate_rocks(Flight *f)
 {
     Rng r; rng_seed(&r, f->route.seed ^ 0xA57E401DU);
     f->rock_total = 0;
-    int attempts = f->route.rock_count * 20;
-    while (f->rock_total < f->route.rock_count && attempts-- > 0) {
+
+    /* ---- Tamper walls: 4 blockages across the belt at regular z intervals ----
+       Each wall has a central rock (hp 3) plus two side rocks (hp 2) placed so
+       close that the gaps are smaller than 2*(FL_SHIP_RADIUS+3), blocking the
+       lane unless the central rock is destroyed. */
+    float belt_len = f->route.belt_end - f->route.belt_start;
+    float zone = belt_len / (float)FL_TAMPER_COUNT;
+    float last_tamper_z = -FL_TAMPER_ZONE_SEP_MIN;
+    for (int k = 0; k < FL_TAMPER_COUNT && f->rock_total < FL_MAX_ROCKS; k++) {
+        float z_center = f->route.belt_start + (k + 0.5f) * zone
+            + rng_range(&r, -zone * 0.2f, zone * 0.2f);
+        /* enforce minimum separation between tamper walls */
+        if (z_center - last_tamper_z < FL_TAMPER_ZONE_SEP_MIN) continue;
+        last_tamper_z = z_center;
+        if (z_center < f->route.belt_start || z_center > f->route.belt_end) continue;
+
+        float lx, ly; lane_at(f, z_center, &lx, &ly);
+        float px, py; lane_perp(f, z_center, &px, &py);
+
+        float r_central = rng_range(&r, FL_TAMPER_RADIUS_CENTRAL_LO, FL_TAMPER_RADIUS_CENTRAL_HI);
+        float r_side = rng_range(&r, FL_TAMPER_RADIUS_SIDE_LO, FL_TAMPER_RADIUS_SIDE_HI);
+        /* side rocks overlap the central rock so the gap is < 2*(FL_SHIP_RADIUS+3) */
+        float overlap = r_central + r_side - 2.0f; /* gap = -2 units -> impassable */
+
+        Rock c;
+        c.x = lx; c.y = ly; c.z = z_center;
+        c.r = r_central; c.rot = rng_range(&r, 0.0f, 6.28f);
+        c.spin = rng_range(&r, -0.6f, 0.6f); c.hp = FL_TAMPER_HP_CENTRAL;
+        c.alive = 1; c.tamper = 1; c.shape = rng_next(&r);
+        if (f->rock_total < FL_MAX_ROCKS) f->rocks[f->rock_total++] = c;
+
+        for (int side = 0; side < 2 && f->rock_total < FL_MAX_ROCKS; side++) {
+            float s = (side == 0) ? 1.0f : -1.0f;
+            Rock sdr;
+            sdr.x = lx + px * overlap * s; sdr.y = ly + py * overlap * s;
+            sdr.z = z_center;
+            sdr.r = r_side; sdr.rot = rng_range(&r, 0.0f, 6.28f);
+            sdr.spin = rng_range(&r, -0.6f, 0.6f); sdr.hp = FL_TAMPER_HP_SIDE;
+            sdr.alive = 1; sdr.tamper = 1; sdr.shape = rng_next(&r);
+            f->rocks[f->rock_total++] = sdr;
+        }
+    }
+
+    /* ---- Normal rocks: avoid the lane (using the narrowed belt width) ----
+       The belt is now harder: the lane is only FL_LANE_HALF_BELT wide at the
+       centre, so the pilot must steer carefully or use the laser. */
+    int normal_target = f->route.rock_count;
+    int normal_placed = 0;
+    int attempts = normal_target * 40;
+    while (normal_placed < normal_target && attempts-- > 0 && f->rock_total < FL_MAX_ROCKS) {
         Rock k;
         float ang = rng_range(&r, 0.0f, 6.2831853f);
         float rad = FL_CORRIDOR * 0.95f * sqrtf(rng_float(&r));
         k.x = cosf(ang) * rad; k.y = sinf(ang) * rad;
         k.z = rng_range(&r, f->route.belt_start, f->route.belt_end);
-        k.r = rng_range(&r, 8.0f, 30.0f);
+        /* larger rocks outside tamper walls: radius 10..36 */
+        k.r = rng_range(&r, 10.0f, 36.0f);
         float dx = k.x - flight_lane_x(f, k.z), dy = k.y - flight_lane_y(f, k.z);
-        float need = FL_LANE_HALF + k.r + FL_SHIP_RADIUS;
+        float half = flight_lane_half_at(f, k.z);
+        float need = half + k.r + FL_SHIP_RADIUS;
         if (dx * dx + dy * dy < need * need) continue;
+        /* do not place a normal rock inside a tamper wall */
+        int in_tamper = 0;
+        for (int j = 0; j < f->rock_total; j++) {
+            if (!f->rocks[j].tamper) continue;
+            float ddx = k.x - f->rocks[j].x, ddy = k.y - f->rocks[j].y;
+            float ddz = k.z - f->rocks[j].z;
+            if (ddx*ddx + ddy*ddy + ddz*ddz < (k.r + f->rocks[j].r) * (k.r + f->rocks[j].r)) {
+                in_tamper = 1; break;
+            }
+        }
+        if (in_tamper) continue;
         k.rot = rng_range(&r, 0.0f, 6.28f);
         k.spin = rng_range(&r, -0.6f, 0.6f);
         k.hp = 1 + (int)(k.r / 12.0f);
-        k.alive = 1;
-        k.shape = rng_next(&r);
+        k.alive = 1; k.tamper = 0; k.shape = rng_next(&r);
         f->rocks[f->rock_total++] = k;
+        normal_placed++;
     }
+    f->route.rock_count = f->rock_total;
 }
 
 int flight_init(Flight *f, int ship_type, unsigned int seed)
@@ -62,7 +161,7 @@ int flight_init(Flight *f, int ship_type, unsigned int seed)
     f->route.dilation = 1.0f;
     f->route.belt_start = 5000.0f;
     f->route.belt_end = 8000.0f;
-    f->route.rock_count = 36;
+    f->route.rock_count = 64;
     f->route.seed = seed;
     f->route.generator_version = FL_GENERATOR_VERSION;
     f->lane_phase_x = rng_range(&f->rng, 0.0f, 6.28f);

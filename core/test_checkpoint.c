@@ -19,6 +19,7 @@ static void equal_checkpoint(const Checkpoint *a, const Checkpoint *b)
     CHECK(a->fuel == b->fuel && a->hull == b->hull && a->energy == b->energy);
     CHECK(a->rocks_alive_lo == b->rocks_alive_lo);
     CHECK(a->rocks_alive_hi == b->rocks_alive_hi);
+    CHECK(a->rocks_alive_extra == b->rocks_alive_extra);
 }
 
 static Checkpoint make_valid(void)
@@ -129,7 +130,8 @@ static void test_validation_rules(void)
     {
         Flight tmp; flight_init(&tmp, c.ship_type, c.route_seed);
         if (tmp.rock_total < 32) c.rocks_alive_lo |= (1u << tmp.rock_total);
-        else c.rocks_alive_hi |= (1u << (tmp.rock_total - 32));
+        else if (tmp.rock_total < 64) c.rocks_alive_hi |= (1u << (tmp.rock_total - 32));
+        else c.rocks_alive_extra |= (1u << (tmp.rock_total - 64));
     }
     CHECK(cp_validate(&c) == CP_INVALID);
     /* valid checkpoint still passes */

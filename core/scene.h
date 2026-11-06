@@ -4,7 +4,7 @@
 /* The C core describes what the pilot sees as flat float arrays in VIEW space
    (x right, y up, z forward, origin at the ship). The renderer only projects
    and draws them. No strings, no pointers, fixed capacities. */
-#define SCENE_MAX_SEGS    3000
+#define SCENE_MAX_SEGS    4096
 #define SCENE_SEG_STRIDE  7   /* x1 y1 z1 x2 y2 z2 color */
 #define SCENE_STARS       160
 #define SCENE_DUST        96

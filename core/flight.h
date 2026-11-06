@@ -8,14 +8,24 @@
    Freedom is deliberately limited: the ship stays inside a corridor and its
    heading is clamped to a cone ("cockpit com profundidade limitada"). */
 #define FL_STEP_SECONDS   (1.0f / 60.0f)
-#define FL_MAX_ROCKS      48
+#define FL_MAX_ROCKS      96
 #define FL_EVENT_CAP      16
 #define FL_CORRIDOR       300.0f
 #define FL_MAX_ANGLE      0.61f    /* about 35 degrees */
 #define FL_SHIP_RADIUS    6.0f
 #define FL_WARN_SECONDS   30.0f    /* proposal, not a fixed rule */
-#define FL_LANE_HALF      70.0f    /* guaranteed rock-free lane half width */
-#define FL_GENERATOR_VERSION 1
+#define FL_LANE_HALF      70.0f    /* lane half width outside the belt / at belt edges */
+#define FL_LANE_HALF_BELT 45.0f    /* lane half width at the centre of the belt */
+#define FL_LANE_TRANSITION 300.0f  /* transition distance at each belt edge */
+#define FL_GENERATOR_VERSION 2
+#define FL_TAMPER_COUNT   4        /* number of blockage walls in the belt */
+#define FL_TAMPER_RADIUS_CENTRAL_LO 26.0f
+#define FL_TAMPER_RADIUS_CENTRAL_HI 30.0f
+#define FL_TAMPER_RADIUS_SIDE_LO 20.0f
+#define FL_TAMPER_RADIUS_SIDE_HI 26.0f
+#define FL_TAMPER_HP_CENTRAL 3
+#define FL_TAMPER_HP_SIDE 2
+#define FL_TAMPER_ZONE_SEP_MIN 400.0f /* minimum z separation between tamper walls */
 
 enum FlAction {
     FL_PITCH_UP, FL_PITCH_DOWN, FL_YAW_LEFT, FL_YAW_RIGHT,
@@ -46,6 +56,7 @@ typedef struct {
     float x, y, z, r;
     float rot, spin;
     int   hp, alive;
+    int   tamper;   /* 1 if this rock is part of a tamper wall blockage, 0 otherwise */
     unsigned int shape;
 } Rock;
 
@@ -78,6 +89,7 @@ void flight_tick(Flight *f);                  /* exactly FL_STEP_SECONDS */
 int  flight_event_take(Flight *f);
 float flight_lane_x(const Flight *f, float z);
 float flight_lane_y(const Flight *f, float z);
+float flight_lane_half_at(const Flight *f, float z); /* lane half width at z */
 unsigned int flight_checksum(const Flight *f); /* determinism tests */
 
 /* Scalar HUD read-out: the only data the browser needs besides the scene. */
