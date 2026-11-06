@@ -247,6 +247,8 @@
 
   return {
     available: available,
+    getContext: function () { return ctx; },
+    getMaster: function () { return master; },
     now: now,
     setSound: setSound,
     start: start,

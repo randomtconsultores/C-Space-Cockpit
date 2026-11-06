@@ -34,7 +34,8 @@
   function handleEvents() {
     var ev;
     while ((ev = core._cs_event_take()) !== 0) {
-      sound(CockpitEvents.soundFor(ev));
+      var synthPlayed = (typeof CockpitSfx !== "undefined" && CockpitSfx.isSfxEvent(ev)) ? CockpitSfx.play(ev, 1) : false;
+      if (!synthPlayed) sound(CockpitEvents.soundFor(ev));
       var v = CockpitEvents.vibrationFor(ev);
       if (v && navigator.vibrate) navigator.vibrate(v);
     }
