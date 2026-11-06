@@ -46,6 +46,17 @@ float lv_tilt_profile(float z)
     return (float)(M_PI_2) * (1.0f - t);
 }
 
+/* Maximum allowed speed fraction during ascent: 15% at ground, 100% at
+   LV_ATMO_END. Pure function of z, linear ramp. Used to stretch the ascent
+   to ~2 minutes without changing the route length. */
+float lv_max_speed_factor(float z)
+{
+    if (z <= 0.0f) return LV_ATMO_MIN_SPEED;
+    if (z >= LV_ATMO_END) return LV_ATMO_MAX_SPEED;
+    float t = z / LV_ATMO_END;
+    return LV_ATMO_MIN_SPEED + (LV_ATMO_MAX_SPEED - LV_ATMO_MIN_SPEED) * t;
+}
+
 /* Minimum fuel margin at arrival, as a fraction of fuel_max. */
 float lv_min_fuel_margin(float fuel_max)
 {

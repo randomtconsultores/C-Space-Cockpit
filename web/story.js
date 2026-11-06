@@ -65,8 +65,8 @@
 
     /* Tilt warning takes precedence during ascent. */
     if (phase === LV_ASCENT) {
-      /* Deviation from the guided gravity-turn profile (pi/2 at the pad, 0 at 700). */
-      var target = (Math.PI / 2) * (1 - altitude / 700);
+      /* Deviation from the guided gravity-turn profile (pi/2 at the pad, 0 at LV_ATMO_END = 2500). */
+      var target = (Math.PI / 2) * (1 - altitude / 2500);
       if (target < 0) target = 0;
       if (Math.abs(stats(FS_ASCENT_ANGLE) - target) > 0.20943951) {
         return TEXTS.TILT_WARNING;

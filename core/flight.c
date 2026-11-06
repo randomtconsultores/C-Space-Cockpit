@@ -172,7 +172,7 @@ int flight_init(Flight *f, int ship_type, unsigned int seed)
     f->lane_phase_y = rng_range(&f->rng, 0.0f, 6.28f);
     generate_rocks(f);
     float cost = f->route.length * s->fuel_per_unit;
-    f->fuel = clampf(cost * 1.25f, 0.0f, s->fuel_max);
+    f->fuel = clampf(cost * 1.50f, 0.0f, s->fuel_max);
     f->hull = s->hull_max;
     f->energy = s->energy_max;
     f->throttle = 0.0f;
@@ -333,7 +333,7 @@ void flight_tick(Flight *f)
         }
     }
 
-    float target_speed = f->fuel > 0.0f ? f->throttle * s->max_speed * drag : 0.0f;
+    float target_speed = f->fuel > 0.0f ? f->throttle * s->max_speed * drag * lv_max_speed_factor(f->pz) : 0.0f;
     f->speed = approach(f->speed, target_speed, s->accel * dt);
     float cp = cosf(f->pitch);
     float dx = sinf(f->yaw) * cp, dy = sinf(f->pitch), dz = cosf(f->yaw) * cp;

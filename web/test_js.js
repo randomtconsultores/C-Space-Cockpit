@@ -4,6 +4,7 @@ const Input = require("./input.js"), Events = require("./events.js"), Hud = requ
 const Settings = require("./settings.js");
 const Gamepad = require("./gamepad.js");
 const Keymap = require("./keymap.js");
+const Renderer = require("./render_gl.js");
 Keymap.useStorage(null);
 Keymap.load();
 Input.setKeymap(Keymap);
@@ -302,6 +303,42 @@ Settings.useStorage(null);
 
   // deixa input num estado coerente
   Keymap.useStorage(null); Keymap.load(); Input.setKeymap(Keymap);
+})();
+
+// --- skyColor: gradient from density to RGB (pure, Node-testable) ---
+(function () {
+  var sky = Renderer.skyColor;
+  /* Extremes. */
+  var c0 = sky(0.0);
+  assert.strictEqual(c0.length, 3);
+  assert(Math.abs(c0[0] - 0.0) < 1e-6 && Math.abs(c0[1] - 0.015) < 1e-6 && Math.abs(c0[2] - 0.02) < 1e-6, "sky(0) black");
+  var c1 = sky(1.0);
+  assert(Math.abs(c1[0] - 0.35) < 1e-6 && Math.abs(c1[1] - 0.60) < 1e-6 && Math.abs(c1[2] - 0.95) < 1e-6, "sky(1) light blue");
+  /* Intermediate stops. */
+  var c6 = sky(0.6);
+  assert(Math.abs(c6[0] - 0.20) < 1e-6 && Math.abs(c6[1] - 0.40) < 1e-6 && Math.abs(c6[2] - 0.75) < 1e-6, "sky(0.6)");
+  var c35 = sky(0.35);
+  assert(Math.abs(c35[0] - 0.90) < 1e-6 && Math.abs(c35[1] - 0.45) < 1e-6 && Math.abs(c35[2] - 0.15) < 1e-6, "sky(0.35) orange");
+  var c2 = sky(0.2);
+  assert(Math.abs(c2[0] - 0.55) < 1e-6 && Math.abs(c2[1] - 0.12) < 1e-6 && Math.abs(c2[2] - 0.10) < 1e-6, "sky(0.2) dark red");
+  var c08 = sky(0.08);
+  assert(Math.abs(c08[0] - 0.15) < 1e-6 && Math.abs(c08[1] - 0.04) < 1e-6 && Math.abs(c08[2] - 0.20) < 1e-6, "sky(0.08) violet");
+  /* Clamping. */
+  var cNeg = sky(-0.5); assert.deepStrictEqual(cNeg, c0, "clamp negative");
+  var cPos = sky(1.5); assert.deepStrictEqual(cPos, c1, "clamp >1");
+  /* Continuity: max difference between consecutive samples of 0.01 in d. */
+  var maxDiff = 0.0;
+  for (var d = 0.0; d < 1.0; d += 0.01) {
+    var ca = sky(d), cb = sky(d + 0.01);
+    var diff = Math.abs(ca[0] - cb[0]) + Math.abs(ca[1] - cb[1]) + Math.abs(ca[2] - cb[2]);
+    if (diff > maxDiff) maxDiff = diff;
+  }
+  assert(maxDiff < 0.1, "skyColor continuity: max step " + maxDiff);
+  /* No NaN. */
+  for (var d = 0.0; d <= 1.0; d += 0.001) {
+    var c = sky(d);
+    assert(!isNaN(c[0]) && !isNaN(c[1]) && !isNaN(c[2]), "no NaN at d=" + d);
+  }
 })();
 
 console.log("js contract tests ok");

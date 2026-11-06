@@ -260,7 +260,7 @@ async function main() {
     const THROTTLE_UP = 4;
     const AUTOPILOT = 7;
     await page.evaluate(([t]) => window.__cockpit._cs_input(t, 1), [THROTTLE_UP]);
-    const ascent = await runTicksUntil(page, 60 * 120, ID.ALTITUDE, 700);
+    const ascent = await runTicksUntil(page, 60 * 130, ID.ALTITUDE, 2500);
     await page.evaluate(([t]) => { window.__cockpit._cs_input(t, 1); window.__cockpit._cs_tick(); window.__cockpit._cs_input(t, 0); }, [AUTOPILOT]);
     const modeAuto = await readStat(page, ID.MODE);
     ok = modeAuto === 0;

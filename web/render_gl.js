@@ -2,6 +2,43 @@
    It knows nothing about game rules. */
 (function (root) {
   "use strict";
+
+  /* --- Sky colour gradient as a function of atmospheric density d (1 = ground, 0 = space) ---
+     Piecewise linear interpolation in RGB space between stops:
+       d 1.0: (0.35, 0.60, 0.95) light blue
+       d 0.6: (0.20, 0.40, 0.75) dark blue-cyan
+       d 0.35: (0.90, 0.45, 0.15) orange
+       d 0.20: (0.55, 0.12, 0.10) dark red
+       d 0.08: (0.15, 0.04, 0.20) dark violet
+       d 0.0: (0.00, 0.015, 0.02) near-black */
+  var SKY_STOPS = [
+    { d: 1.00, r: 0.35, g: 0.60, b: 0.95 },
+    { d: 0.60, r: 0.20, g: 0.40, b: 0.75 },
+    { d: 0.35, r: 0.90, g: 0.45, b: 0.15 },
+    { d: 0.20, r: 0.55, g: 0.12, b: 0.10 },
+    { d: 0.08, r: 0.15, g: 0.04, b: 0.20 },
+    { d: 0.00, r: 0.00, g: 0.015, b: 0.02 }
+  ];
+
+  function lerpChannel(a, b, t) { return a + (b - a) * t; }
+
+  /* Returns [r, g, b] for density d in [0, 1]. Pure, deterministic, Node-testable. */
+  function skyColor(d) {
+    d = Math.max(0, Math.min(1, d));
+    for (var i = 0; i < SKY_STOPS.length - 1; i++) {
+      var hi = SKY_STOPS[i], lo = SKY_STOPS[i + 1];
+      if (d <= hi.d && d >= lo.d) {
+        var t = (hi.d - d) / (hi.d - lo.d);
+        return [
+          lerpChannel(hi.r, lo.r, t),
+          lerpChannel(hi.g, lo.g, t),
+          lerpChannel(hi.b, lo.b, t)
+        ];
+      }
+    }
+    return [SKY_STOPS[SKY_STOPS.length - 1].r, SKY_STOPS[SKY_STOPS.length - 1].g, SKY_STOPS[SKY_STOPS.length - 1].b];
+  }
+
   var VS_LINE = "attribute vec3 aPos; attribute float aCol; uniform float uF; uniform float uAsp; uniform float uShake; uniform float uTime;\n" +
     "varying float vCol; varying float vFade;\n" +
     "void main(){ vCol=aCol; vFade=clamp(1.15-aPos.z/4200.0,0.18,1.0);\n" +
@@ -54,8 +91,8 @@
   /* seg: Float32Array view (stride 7), pts: Float32Array view (stride 4) */
   Renderer.prototype.draw = function (seg, segCount, pts, ptCount, density, speed, time) {
     var gl = this.gl, asp = this.canvas.width / this.canvas.height;
-    var skyR = 0.35 * density, skyG = 0.60 * density + 0.015 * (1 - density), skyB = 0.95 * density + 0.02 * (1 - density);
-    gl.clearColor(skyR, skyG, skyB, 1); gl.clear(gl.COLOR_BUFFER_BIT);
+    var sky = skyColor(density);
+    gl.clearColor(sky[0], sky[1], sky[2], 1); gl.clear(gl.COLOR_BUFFER_BIT);
     gl.disable(gl.DEPTH_TEST); gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE);
 
     var shake = density * speed * 0.015;
@@ -90,4 +127,9 @@
     gl.drawArrays(gl.LINES, 0, n * 2);
   };
   root.CockpitRenderer = Renderer;
+  /* Expose pure function for Node testing. */
+  if (typeof module !== "undefined" && module.exports) {
+    module.exports.skyColor = skyColor;
+    module.exports.SKY_STOPS = SKY_STOPS;
+  }
 })(typeof self !== "undefined" ? self : this);

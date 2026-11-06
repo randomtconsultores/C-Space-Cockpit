@@ -181,7 +181,7 @@ static void test_solvability_50_seeds(void)
                 if (F.rocks[i].tamper && F.rocks[i].hp == FL_TAMPER_HP_CENTRAL && F.rocks[i].alive)
                     central_ids[n_central++] = i;
             }
-            while (F.mode == FL_MODE_MANUAL && guard++ < 60 * 600) {
+            while (F.mode == FL_MODE_MANUAL && guard++ < 60 * 900) {
                 pilot_laser(&F);
                 flight_tick(&F);
                 drain_has(&F, -1);
@@ -308,7 +308,7 @@ static void test_instances_independent(void)
     /* No hidden global state: two flights advanced in lockstep or in sequence match. */
     Flight a, b;
     flight_init(&a, SHIP_BALANCED, 9); flight_init(&b, SHIP_BALANCED, 9);
-    a.mode = b.mode = FL_MODE_AUTOPILOT; a.pz = b.pz = 2900.0f; a.speed = b.speed = 40.0f; a.throttle = b.throttle = 0.6f;
+    a.mode = b.mode = FL_MODE_AUTOPILOT; a.pz = b.pz = 4400.0f; a.speed = b.speed = 40.0f; a.throttle = b.throttle = 0.6f;
     for (int i = 0; i < 1200; i++) flight_tick(&a);
     for (int i = 0; i < 1200; i++) flight_tick(&b);
     CHECK(flight_checksum(&a) == flight_checksum(&b));
@@ -316,6 +316,130 @@ static void test_instances_independent(void)
     while ((e = flight_event_take(&a)) != FL_EV_NONE) if (e >= FL_EV_SLING_GOOD && e <= FL_EV_SLING_MISS) na++;
     while ((e = flight_event_take(&b)) != FL_EV_NONE) if (e >= FL_EV_SLING_GOOD && e <= FL_EV_SLING_MISS) nb++;
     CHECK(na == 1 && nb == 1);
+}
+
+/* ------------------------------------------------------------------ */
+/* Ascent duration (~2 minutes at full throttle)                      */
+/* ------------------------------------------------------------------ */
+
+/* Scripted ascent pilot: full throttle, no pitch input (guided gravity turn
+   keeps tilt_angle on profile automatically). */
+static void pilot_ascent(Flight *f, float throttle)
+{
+    f->throttle = throttle;
+    /* No yaw/pitch input: let the guided turn handle tilt. */
+}
+
+static int ascent_ticks(float throttle, int ship_type)
+{
+    flight_init(&F, ship_type, 7);
+    F.mode = FL_MODE_MANUAL;
+    int ticks = 0;
+    while (F.pz < LV_ATMO_END && ticks < 60 * 600) {
+        pilot_ascent(&F, throttle);
+        flight_tick(&F);
+        ticks++;
+    }
+    return ticks;
+}
+
+static void test_ascent_duration(void)
+{
+    /* Full throttle (100%): 100-140 seconds. */
+    int ticks100 = ascent_ticks(1.0f, SHIP_BALANCED);
+    float seconds100 = ticks100 / 60.0f;
+    printf("ascent 100%%: %d ticks = %.1f s\n", ticks100, seconds100);
+    CHECK(seconds100 >= 100.0f && seconds100 <= 140.0f);
+
+    /* Never less than 60 s even at full throttle. */
+    CHECK(seconds100 >= 60.0f);
+
+    /* Partial throttle (60%, 30%): takes longer, no upper bound but must
+       eventually exit (guard limits ticks). */
+    int ticks60 = ascent_ticks(0.6f, SHIP_BALANCED);
+    int ticks30 = ascent_ticks(0.3f, SHIP_BALANCED);
+    float seconds60 = ticks60 / 60.0f;
+    float seconds30 = ticks30 / 60.0f;
+    printf("ascent 60%%:  %d ticks = %.1f s\n", ticks60, seconds60);
+    printf("ascent 30%%:  %d ticks = %.1f s\n", ticks30, seconds30);
+    CHECK(seconds60 > seconds100);
+    CHECK(seconds30 > seconds60);
+    /* 30% must eventually exit the atmosphere (not stranded on pad). */
+    CHECK(ticks30 < 60 * 600);
+    CHECK(F.pz >= LV_ATMO_END);
+}
+
+static void test_ascent_tilt_follow(void)
+{
+    /* Following the profile with no pitch input stays within the window. */
+    for (int t = 0; t < SHIP_TYPE_COUNT; t++) {
+        flight_init(&F, t, 7);
+        F.mode = FL_MODE_MANUAL;
+        F.throttle = 1.0f;
+        int warnings = 0, ticks = 0;
+        while (F.pz < LV_ATMO_END + 20.0f && ticks++ < 60 * 600) {
+            flight_tick(&F);
+            warnings += count_ev(&F, FL_EV_TILT_WARNING);
+        }
+        CHECK(F.pz >= LV_ATMO_END);
+        CHECK(warnings == 0);
+        CHECK(fabsf(F.tilt_angle) <= LV_TILT_WINDOW);
+    }
+}
+
+static void test_platform_stationary(void)
+{
+    /* No throttle: ship stays on the platform, never exits the atmosphere. */
+    flight_init(&F, SHIP_BALANCED, 7);
+    F.mode = FL_MODE_MANUAL;
+    /* throttle stays 0 */
+    int ticks = 0;
+    while (F.pz < LV_ATMO_END && ticks < 60 * 600) {
+        flight_tick(&F);
+        ticks++;
+    }
+    CHECK(F.pz < LV_ATMO_END);  /* never reaches space without thrust */
+}
+
+static void test_tilt_penalty_ascent(void)
+{
+    /* Holding pitch up keeps the nose vertical: warning once, fuel penalty,
+       no destruction. */
+    flight_init(&F, SHIP_BALANCED, 7);
+    float fuel_before = F.fuel;
+    int warnings = 0, ticks = 0;
+    while (F.pz < LV_ATMO_END + 20.0f && ticks++ < 60 * 600) {
+        flight_input(&F, FL_THROTTLE_UP, 1);
+        flight_input(&F, FL_PITCH_UP, 1);
+        flight_tick(&F);
+        int w = count_ev(&F, FL_EV_TILT_WARNING);
+        if (w) { warnings += w; CHECK(fuel_before - F.fuel >= LV_TILT_PENALTY - 0.5f); fuel_before = F.fuel; }
+    }
+    CHECK(warnings >= 1);
+    CHECK(F.mode != FL_MODE_DESTROYED);
+    CHECK(F.fuel < flight_stat(&F, FS_FUEL_MAX));
+}
+
+static void test_checkpoint_ascent(void)
+{
+    /* Checkpoint round-trip at various points during the ascent. */
+    float zs[] = { 0.0f, 500.0f, 1250.0f, 2000.0f, 2490.0f };
+    for (int k = 0; k < 5; k++) {
+        flight_init(&F, SHIP_BALANCED, 11);
+        F.mode = FL_MODE_MANUAL;
+        F.pz = zs[k];
+        F.throttle = 1.0f;
+        F.tilt_angle = lv_tilt_profile(zs[k]);
+        /* Advance a few ticks to reach this state naturally */
+        for (int i = 0; i < 60 && F.pz < zs[k] + 50.0f; i++) flight_tick(&F);
+        Checkpoint cp; Flight a, b;
+        if (cp_capture(&F, &cp) != CP_OK) { CHECK(0); continue; }
+        CHECK(cp_restore(&cp, &a) == CP_OK);
+        b = F;
+        for (int i = 0; i < 300; i++) { flight_tick(&a); flight_tick(&b); }
+        CHECK(flight_checksum(&a) == flight_checksum(&b));
+        CHECK(a.tilt_angle == b.tilt_angle);
+    }
 }
 
 /* ------------------------------------------------------------------ */
@@ -336,6 +460,11 @@ int main(void)
     test_tilt();
     test_checkpoint_phases();
     test_instances_independent();
+    test_ascent_duration();
+    test_ascent_tilt_follow();
+    test_platform_stationary();
+    test_tilt_penalty_ascent();
+    test_checkpoint_ascent();
     printf("%d checks, %d failures\n", checks, failures);
     return failures ? 1 : 0;
 }

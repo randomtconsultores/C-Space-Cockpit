@@ -62,7 +62,7 @@ assert.strictEqual(Story.hintForState(s), "Plataforma de lan\u00e7amento. Aument
 assert(Story.hintForState(s).indexOf("Plataforma") >= 0, "platform text");
 
 /* Ascent: phase 0 -> ASCENT */
-s = makeStats({ 23: 0, 24: 350, 0: 10, 26: Math.PI / 4 });
+s = makeStats({ 23: 0, 24: 1250, 0: 10, 26: Math.PI / 4 });
 assert.strictEqual(Story.hintForState(s), Story.textForPhase(0), "ascent hint");
 assert(Story.hintForState(s).indexOf("subida") >= 0, "ascent text");
 

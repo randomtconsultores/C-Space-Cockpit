@@ -179,6 +179,7 @@ static void test_collision_and_laser(void)
     flight_input(&F, FL_FIRE, 0);
     F.rocks[0] = (Rock){ 0, 0, F.pz + 30, 20, 0, 0, 1, 1, 0, 77 };
     float hull = F.hull;
+    F.speed = 60.0f;  /* ensure the ship reaches the rock despite atmospheric drag */
     for (int i = 0; i < 120 && F.rocks[0].alive; i++) flight_tick(&F);
     CHECK(!F.rocks[0].alive); CHECK(F.hull < hull); CHECK(drain_has(&F, FL_EV_HIT)); CHECK(F.shake > 0.0f);
     flight_init(&F, SHIP_BALANCED, 9);
@@ -275,9 +276,9 @@ static void test_scene_intro(void)
     for (int i = 0; i < S.seg_count; i++) if ((int)S.seg[i * SCENE_SEG_STRIDE + 6] == SC_EARTH) earth_mid++;
     CHECK(earth_mid > 0);
 
-    /* Above atmosphere (pz = 800): no Earth, stars reappear. */
+    /* Above atmosphere (pz = 2600 > LV_ATMO_END=2500): no Earth, stars reappear. */
     flight_init(&F, SHIP_BALANCED, 11);
-    F.pz = 800.0f; F.mode = FL_MODE_MANUAL; F.tilt_angle = 0.0f;
+    F.pz = 2600.0f; F.mode = FL_MODE_MANUAL; F.tilt_angle = 0.0f;
     scene_build(&F, &S);
     CHECK(S.seg_count <= SCENE_MAX_SEGS);
     int earth_high = 0;
@@ -466,7 +467,7 @@ static void test_solvability_seeds(void)
                 if (F.rocks[i].tamper && F.rocks[i].hp == FL_TAMPER_HP_CENTRAL && F.rocks[i].alive)
                     central_ids[n_central++] = i;
             }
-            while (F.mode == FL_MODE_MANUAL && guard++ < 60 * 600) {
+            while (F.mode == FL_MODE_MANUAL && guard++ < 60 * 900) {
                 pilot_laser(&F);
                 flight_tick(&F);
                 drain_has(&F, -1);

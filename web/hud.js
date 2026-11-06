@@ -101,11 +101,12 @@
     var phase = stats(STAT.PHASE);
     var gy = Math.round(s * 4);
     if (phase === 0) {
-      var altKm = Math.round(stats(STAT.ALTITUDE) / 7);
+      /* Altitude in km: ~100 km at the top of the atmosphere (Karman line). */
+      var altKm = Math.round(stats(STAT.ALTITUDE) / 25);
       ctx.fillStyle = GREEN; ctx.textAlign = "left";
       ctx.fillText("ALTITUDE " + altKm + " km", x0, gy);
       var tilt = stats(STAT.ASCENT_ANGLE);
-      var targetTilt = (Math.PI / 2) * (1 - stats(STAT.ALTITUDE) / 700);
+      var targetTilt = (Math.PI / 2) * (1 - stats(STAT.ALTITUDE) / 2500);
       if (targetTilt < 0) targetTilt = 0;
       ctx.fillText("INCLINAÇÃO " + Math.round(tilt * 180 / Math.PI) + "° / alvo " + Math.round(targetTilt * 180 / Math.PI) + "°", x0, gy + s * 1.5);
     } else if (phase === 3) {

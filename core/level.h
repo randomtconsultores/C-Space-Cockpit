@@ -16,16 +16,18 @@ struct Flight;
    Phase is derived from pz only (no persistent state), so the checkpoint
    does not need new fields. */
 
-#define LV_ATMO_END       700.0f   /* end of atmosphere (z) */
-#define LV_ATMO_SCALE     150.0f   /* density scale: density < 0.02 at LV_ATMO_END */
-#define LV_DRAG_K         0.7f     /* max drag: max speed at ground = 30% of max_speed */
+#define LV_ATMO_END       2500.0f  /* end of atmosphere (z): ~2 minutes ascent at full throttle */
+#define LV_ATMO_SCALE     600.0f   /* density scale: gradual transition through the atmosphere */
+#define LV_DRAG_K         0.84f    /* max drag: max speed at ground = 16% of max_speed */
 #define LV_ATMO_INERTIA   0.6f     /* turn rates slower in atmosphere */
 #define LV_ATMO_FUEL      1.0f     /* fuel multiplier in atmosphere */
+#define LV_ATMO_MIN_SPEED 0.16f    /* minimum max-speed fraction at ground (z=0) */
+#define LV_ATMO_MAX_SPEED 1.00f    /* maximum max-speed fraction outside atmosphere (z>=LV_ATMO_END) */
 #define LV_TILT_AUTHORITY 0.40f    /* player authority over tilt (fraction of guide rate) */
 #define LV_TILT_WINDOW    0.20943951f  /* 12 degrees in radians */
 #define LV_TILT_PENALTY   5.0f     /* fuel penalty for tilt outside window */
-#define LV_MOON_Z         3000.0f  /* lunar zone center (z) */
-#define LV_MOON_ZONE      800.0f   /* lunar zone width */
+#define LV_MOON_Z         4500.0f  /* lunar zone center (z) */
+#define LV_MOON_ZONE      400.0f   /* lunar zone width */
 #define LV_SLING_WIDTH    60.0f    /* sling corridor width for q = 0 */
 #define LV_SLING_SPEED_RATIO 0.25f /* speed bonus up to +25% of max_speed */
 #define LV_SLING_FUEL     50.0f    /* fuel credit */
@@ -48,6 +50,7 @@ float lv_drag_factor(float d);
 float lv_turn_factor(float d);
 float lv_fuel_factor(float d);
 float lv_tilt_profile(float z);   /* target tilt angle (radians) at z during ascent */
+float lv_max_speed_factor(float z); /* max allowed speed fraction in atmosphere (0..1) */
 int lv_moon_xy(const struct Flight *f, float z, float *x, float *y);
 float lv_sling_quality(float offset);   /* quality 0..1 from lateral offset */
 float lv_min_fuel_margin(float fuel_max);
