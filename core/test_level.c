@@ -269,6 +269,25 @@ static int sling_event_at(float alt, int *got_good, int *got_ok, int *got_miss, 
     return ticks;
 }
 
+static void test_ring_events(void)
+{
+    float rx, ry, u = 400.0f;
+    CHECK(lv_moon_ring(u, &rx, &ry) == 1);
+    for (int k = 0; k < 2; k++) {
+        flight_init(&F, SHIP_BALANCED, 4);
+        F.mode = FL_MODE_MANUAL; F.throttle = 0.5f; F.speed = 60.0f;
+        F.pz = LV_MOON_Z + u - 3.0f; F.px = rx + (k ? 150.0f : 10.0f); F.py = ry;
+        int pass = 0, miss = 0;
+        for (int i = 0; i < 20; i++) {
+            F.px = rx + (k ? 150.0f : 10.0f); F.py = ry;
+            flight_tick(&F);
+            int e;
+            while ((e = flight_event_take(&F)) != FL_EV_NONE) { if (e == FL_EV_RING_PASS) pass++; if (e == FL_EV_RING_MISS) miss++; }
+        }
+        if (k == 0) { CHECK(pass == 1 && miss == 0); } else { CHECK(pass == 0 && miss == 1); }
+    }
+}
+
 static void test_sling(void)
 {
     int g, o, m; float ds, df;
@@ -623,6 +642,7 @@ int main(void)
     test_solvability_50_seeds();
     test_autopilot_atmosphere();
     test_sling();
+    test_ring_events();
     test_tilt();
     test_checkpoint_phases();
     test_instances_independent();

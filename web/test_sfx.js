@@ -100,7 +100,7 @@ group("plan determinismo", function () {
 /* ---------- 2. campos finitos, ganhos, frequencias, atrasos ---------- */
 group("campos validos", function () {
   var all = [];
-  [SFX.FIRE, SFX.ROCK_BREAK, SFX.HIT, SFX.DESTROYED].forEach(function (e) {
+  [SFX.FIRE, SFX.ROCK_BREAK, SFX.HIT, SFX.DESTROYED, SFX.RING_PASS].forEach(function (e) {
     [0, 0.5, 1].forEach(function (i) {
       Sfx.plan(e, 42, i).forEach(function (ev) { all.push(ev); });
     });
@@ -119,6 +119,13 @@ group("campos validos", function () {
     }
   });
   c(all.length > 0, "houve eventos gerados");
+});
+
+group("anel: combo sobe de tom e dura pouco", function () {
+  var a = Sfx.plan(SFX.RING_PASS, 1, 1, 0), b = Sfx.plan(SFX.RING_PASS, 1, 1, 5);
+  c(a[0].f0 < b[0].f0, "nota sobe com o combo");
+  c(Sfx.plan(SFX.RING_PASS, 1, 1, 99)[0].f0 < 3000, "combo limitado");
+  a.forEach(function (ev) { c(ev.t + ev.dur <= 0.5, "dura menos de 0,5 s"); });
 });
 
 /* ---------- 3. duracoes dentro dos limites ---------- */

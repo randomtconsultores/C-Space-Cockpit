@@ -89,15 +89,68 @@ static int moon_front(const Flight *f, float mx, float my, float mz, float wx, f
     return nx * sx + ny * sy + nz * sz > 0.0f;
 }
 
+/* Point on the sphere for a chord point (projected back to radius r). */
+static void moon_project(const float c[3], float r, const float p[3], float out[3])
+{
+    float dx = p[0] - c[0], dy = p[1] - c[1], dz = p[2] - c[2];
+    float len = sqrtf(dx * dx + dy * dy + dz * dz);
+    if (len < 1e-3f) { out[0] = c[0] + r; out[1] = c[1]; out[2] = c[2]; return; }
+    out[0] = c[0] + dx / len * r; out[1] = c[1] + dy / len * r; out[2] = c[2] + dz / len * r;
+}
+
+/* Draws the part of the segment that faces the ship; the cut is found on the
+   horizon by bisection, so lines reach the limb instead of stopping short. */
 static void moon_seg(Scene *s, const View *v, const Flight *f, const float c[3],
                      const float a[3], const float b[3])
 {
-    /* Both ends must face the ship: no chords across the disc at the limb. */
-    if (!moon_front(f, c[0], c[1], c[2], a[0], a[1], a[2]) || !moon_front(f, c[0], c[1], c[2], b[0], b[1], b[2])) return;
+    int fa = moon_front(f, c[0], c[1], c[2], a[0], a[1], a[2]);
+    int fb = moon_front(f, c[0], c[1], c[2], b[0], b[1], b[2]);
+    if (!fa && !fb) return;
+    float r = sqrtf((a[0] - c[0]) * (a[0] - c[0]) + (a[1] - c[1]) * (a[1] - c[1]) + (a[2] - c[2]) * (a[2] - c[2]));
+    float pa[3] = { a[0], a[1], a[2] }, pb[3] = { b[0], b[1], b[2] };
+    if (!fa || !fb) {
+        const float *in = fa ? a : b, *out = fa ? b : a;
+        float lo = 0.0f, hi = 1.0f;   /* t from the visible end towards the hidden one */
+        for (int i = 0; i < 10; i++) {
+            float m = 0.5f * (lo + hi), q[3], qp[3];
+            for (int k = 0; k < 3; k++) q[k] = in[k] + (out[k] - in[k]) * m;
+            moon_project(c, r, q, qp);
+            if (moon_front(f, c[0], c[1], c[2], qp[0], qp[1], qp[2])) lo = m; else hi = m;
+        }
+        float cut[3], q[3];
+        for (int k = 0; k < 3; k++) q[k] = in[k] + (out[k] - in[k]) * lo;
+        moon_project(c, r, q, cut);
+        if (fa) memcpy(pb, cut, sizeof cut); else memcpy(pa, cut, sizeof cut);
+    }
     float va[3], vb[3];
-    to_view(v, a[0], a[1], a[2], va, 1);
-    to_view(v, b[0], b[1], b[2], vb, 1);
+    to_view(v, pa[0], pa[1], pa[2], va, 1);
+    to_view(v, pb[0], pb[1], pb[2], vb, 1);
     add_seg(s, va, vb, SC_MOON);
+}
+
+/* The silhouette: circle on the sphere where the surface turns away from the ship. */
+static void draw_moon_limb(Scene *s, const View *v, const Flight *f, const float c[3])
+{
+    float dx = f->px - c[0], dy = f->py - c[1], dz = f->pz - c[2];
+    float d = sqrtf(dx * dx + dy * dy + dz * dz);
+    const float r = LV_MOON_RADIUS;
+    if (d <= r * 1.001f) return;
+    float n[3] = { dx / d, dy / d, dz / d };
+    float k = r * r / d, lr = r * sqrtf(1.0f - r * r / (d * d));
+    float ux[3], t[3] = { 0.0f, 1.0f, 0.0f };
+    if (fabsf(n[1]) > 0.9f) { t[0] = 1.0f; t[1] = 0.0f; }
+    ux[0] = n[1] * t[2] - n[2] * t[1]; ux[1] = n[2] * t[0] - n[0] * t[2]; ux[2] = n[0] * t[1] - n[1] * t[0];
+    float ul = sqrtf(ux[0] * ux[0] + ux[1] * ux[1] + ux[2] * ux[2]);
+    for (int i = 0; i < 3; i++) ux[i] /= ul;
+    float uy[3] = { n[1] * ux[2] - n[2] * ux[1], n[2] * ux[0] - n[0] * ux[2], n[0] * ux[1] - n[1] * ux[0] };
+    float prev[3] = {0, 0, 0};
+    for (int j = 0; j <= 64; j++) {
+        float a = 6.2831853f * (float)j / 64.0f, ca = cosf(a), sa = sinf(a), w[3], cur[3];
+        for (int i = 0; i < 3; i++) w[i] = c[i] + n[i] * k + (ux[i] * ca + uy[i] * sa) * lr;
+        to_view(v, w[0], w[1], w[2], cur, 1);
+        if (j > 0) add_seg(s, prev, cur, SC_MOON);
+        memcpy(prev, cur, sizeof cur);
+    }
 }
 
 static void moon_point(const float c[3], float r, float lat, float lon, float out[3])
@@ -116,6 +169,7 @@ static void draw_moon(Scene *s, const View *v, const Flight *f)
     float c[3]; lv_moon_center(&c[0], &c[1], &c[2]);
     const float r = LV_MOON_RADIUS;
     const float pi = 3.1415926f;
+    draw_moon_limb(s, v, f, c);
     /* parallels */
     for (int i = 1; i <= MOON_PAR; i++) {
         float lat = -pi * 0.5f + pi * (float)i / (float)(MOON_PAR + 1);

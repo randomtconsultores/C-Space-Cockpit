@@ -10,8 +10,8 @@
   "use strict";
 
   /* IDs de efeito (espelham enum FlEvent de core/flight.h). */
-  var SFX = { FIRE: 1, ROCK_BREAK: 2, HIT: 3, DESTROYED: 11 };
-  var SFX_COUNT = 4;
+  var SFX = { FIRE: 1, ROCK_BREAK: 2, HIT: 3, DESTROYED: 11, RING_PASS: 20 };
+  var SFX_COUNT = 5;
 
   /* Ganho dos efeitos fica porbaixo do master (0,8 = nivel inicial claro). */
   var SFX_GAIN = 0.8;
@@ -22,6 +22,9 @@
   PRIORITY[SFX.HIT] = 2;
   PRIORITY[SFX.ROCK_BREAK] = 3;
   PRIORITY[SFX.FIRE] = 4;
+  PRIORITY[SFX.RING_PASS] = 2;
+  /* Pentatonic steps (ratios) climbed by consecutive rings: the combo. */
+  var RING_SCALE = [1, 9 / 8, 5 / 4, 3 / 2, 5 / 3, 2, 9 / 4, 5 / 2];
 
   /* Gerador pseudoaleatorio deterministico (LCG). Sem Math.random aqui. */
   function lcg(seed) {
@@ -59,7 +62,7 @@
 
   /* ---------- Parte pura: plano de eventos de som descritivos ---------- */
 
-  function plan(effectId, seed, intensity) {
+  function plan(effectId, seed, intensity, combo) {
     intensity = clampIntensity(intensity);
     var r = lcg(seed);
     var events = [];
@@ -78,6 +81,16 @@
       push(0, 0.12, "osc", "square", 1800, 300, null, 0, 0, 0.45 * intensity, 0.005, 0.115, PRIORITY[SFX.FIRE]);
       push(0, 0.06, "osc", "sine", 70, 70, null, 0, 0, 0.55 * intensity, 0.002, 0.058, PRIORITY[SFX.FIRE]);
       push(0.01, 0.08, "noise", null, 0, 0, "bandpass", 2500, 1200, 0.30 * intensity, 0.005, 0.075, PRIORITY[SFX.FIRE]);
+    } else if (effectId === SFX.RING_PASS) {
+      /* Rewarding chime: a bright note on a pentatonic scale that rises with the
+         combo (consecutive rings), a fifth above it 70 ms later, a soft octave
+         shimmer and a short airy sparkle. Total <= 450 ms. */
+      var ci = Math.max(0, Math.min(RING_SCALE.length - 1, (combo | 0)));
+      var fb = 523 * RING_SCALE[ci];
+      push(0, 0.30, "osc", "triangle", fb, fb, null, 0, 0, 0.42 * intensity, 0.004, 0.28, PRIORITY[SFX.RING_PASS]);
+      push(0.07, 0.34, "osc", "sine", fb * 1.5, fb * 1.5, null, 0, 0, 0.36 * intensity, 0.004, 0.32, PRIORITY[SFX.RING_PASS]);
+      push(0.07, 0.40, "osc", "sine", fb * 2, fb * 2.01, null, 0, 0, 0.16 * intensity, 0.01, 0.38, PRIORITY[SFX.RING_PASS]);
+      push(0.06, 0.12, "noise", null, 0, 0, "bandpass", 6000, 9000, 0.10 * intensity, 0.005, 0.11, PRIORITY[SFX.RING_PASS]);
     } else if (effectId === SFX.ROCK_BREAK) {
       /* Crepitar de rocha a partir de ruido filtrado 2 kHz->300 Hz, golpe
          grave seco 80-120 Hz e 3 a 6 fragmentos curtos nos 400 ms seguintes.
@@ -115,7 +128,7 @@
       push(2.7, 1.3, "osc", "sine", 400, 400, null, 0, 0, 0.30 * intensity, 0.05, 1.25, PRIORITY[SFX.DESTROYED]);
     }
     /* Small seeded pitch variation (+-6%) so repeated shots do not sound identical. */
-    var pf = 1 + r.range(-0.06, 0.06);
+    var pf = effectId === SFX.RING_PASS ? 1 : 1 + r.range(-0.06, 0.06);
     for (var k = 0; k < events.length; k++) {
       if (events[k].kind === "osc") { events[k].f0 *= pf; events[k].f1 *= pf; }
     }
@@ -225,7 +238,7 @@
     };
   }
 
-  function play(effectId, intensity) {
+  function play(effectId, intensity, combo) {
     intensity = clampIntensity(intensity);
     var s = synthRef();
     if (!s || typeof s.available !== "function" || !s.available()) return false;
@@ -234,7 +247,7 @@
     if (!ctx || !master) return false;
     var now = ctx.currentTime;
     master = getBus(ctx, master);
-    var evs = plan(effectId, nextSeed++, intensity);
+    var evs = plan(effectId, nextSeed++, intensity, combo);
     for (var i = 0; i < evs.length; i++) {
       var ev = evs[i];
       if (!isFiniteNumber(ev.t) || !isFiniteNumber(ev.dur) || ev.t < 0 || ev.dur < 0) continue;
@@ -253,6 +266,6 @@
     play: play,
     available: available,
     clampIntensity: clampIntensity,
-    isSfxEvent: function (id) { return id === SFX.FIRE || id === SFX.ROCK_BREAK || id === SFX.HIT || id === SFX.DESTROYED; }
+    isSfxEvent: function (id) { return id === SFX.FIRE || id === SFX.ROCK_BREAK || id === SFX.HIT || id === SFX.DESTROYED || id === SFX.RING_PASS; }
   };
 });

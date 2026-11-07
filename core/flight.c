@@ -426,6 +426,15 @@ void flight_tick(Flight *f)
             if (q > 0.0f && f->fuel > 0.0f && (f->mode == FL_MODE_MANUAL || f->mode == FL_MODE_AUTOPILOT)) {
                 f->fuel = clampf(f->fuel + LV_SLING_FUEL / LV_SLING_BAND_SECONDS * q * dt, 0.0f, s->fuel_max);
             }
+            /* Ring passage: each guide ring crossed within its radius is a reward event. */
+            if (f->mode == FL_MODE_MANUAL || f->mode == FL_MODE_AUTOPILOT) {
+                float uk = floorf((f->pz - LV_MOON_Z) / LV_MOON_RING_STEP) * LV_MOON_RING_STEP;
+                float zr = LV_MOON_Z + uk, rx, ry;
+                if (pz_before < zr && f->pz >= zr && lv_moon_ring(uk, &rx, &ry)) {
+                    float dx = f->px - rx, dy = f->py - ry;
+                    push_event(f, dx * dx + dy * dy <= LV_MOON_RING_RADIUS * LV_MOON_RING_RADIUS ? FL_EV_RING_PASS : FL_EV_RING_MISS);
+                }
+            }
             /* One-shot summary when the ship crosses the closest-approach plane. */
             if (pz_before < LV_MOON_Z && f->pz >= LV_MOON_Z) {
                 if (q >= 0.7f) push_event(f, FL_EV_SLING_GOOD);

@@ -37,6 +37,8 @@ struct Flight;
 #define LV_SLING_ALT_BEST 200.0f   /* altitude over the surface at or below which quality is 1 */
 #define LV_SLING_ALT_MAX  900.0f   /* altitude at or above which quality is 0 */
 #define LV_SLING_BAND_SECONDS 20.0f /* fuel credit is spread over this many seconds at quality 1 */
+#define LV_MOON_RING_STEP 200.0f    /* distance between guide rings along z */
+#define LV_MOON_RING_RADIUS 60.0f   /* a ring is passed if the ship crosses within this distance of its centre */
 #define LV_MOON_RING_SPAN 1500.0f  /* the circular part of the guide path covers z offsets within +-this; it blends to x=0 at the zone edges */
 #define LV_MOON_RING_ALT  250.0f   /* altitude over the surface of the guide ring path */
 #define LV_SLING_SPEED_RATIO 0.25f /* speed bonus up to +25% of max_speed */

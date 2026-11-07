@@ -33,10 +33,12 @@
     if (!sounds[id]) sounds[id] = new Howl({ src: ["sounds/" + id + ".wav"], volume: 0.6, html5: false });
     sounds[id].play();
   }
+  var ringCombo = 0;
   function handleEvents() {
     var ev;
     while ((ev = core._cs_event_take()) !== 0) {
-      var synthPlayed = (typeof CockpitSfx !== "undefined" && CockpitSfx.isSfxEvent(ev)) ? CockpitSfx.play(ev, 1) : false;
+      if (ev === 21) ringCombo = 0;
+      var synthPlayed = ev === 20 ? (typeof CockpitSfx !== "undefined" && CockpitSfx.play(20, 1, ringCombo++)) : (typeof CockpitSfx !== "undefined" && CockpitSfx.isSfxEvent(ev)) ? CockpitSfx.play(ev, 1) : false;
       if (!synthPlayed) sound(CockpitEvents.soundFor(ev));
       var v = CockpitEvents.vibrationFor(ev);
       if (v && navigator.vibrate) navigator.vibrate(v);

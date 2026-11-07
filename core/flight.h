@@ -42,7 +42,7 @@ enum FlEvent { FL_EV_NONE = 0, FL_EV_FIRE, FL_EV_ROCK_BREAK, FL_EV_HIT, FL_EV_WA
                FL_EV_LOW_FUEL, FL_EV_HULL_CRITICAL, FL_EV_ARRIVED, FL_EV_DESTROYED,
                FL_EV_STRANDED, FL_EV_PHASE_ATMO_EXIT, FL_EV_PHASE_MOON,
                FL_EV_SLING_GOOD, FL_EV_SLING_OK, FL_EV_SLING_MISS, FL_EV_TILT_WARNING,
-               FL_EV_MOON_COLLISION, FL_EV_COUNT };
+               FL_EV_MOON_COLLISION, FL_EV_RING_PASS, FL_EV_RING_MISS, FL_EV_COUNT };
 
 typedef struct {
     float length;       /* distance units */
