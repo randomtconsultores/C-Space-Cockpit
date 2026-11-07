@@ -11,7 +11,7 @@
 #define FL_MAX_ROCKS      96
 #define FL_EVENT_CAP      16
 #define FL_CORRIDOR       300.0f
-#define FL_MAX_ANGLE      0.61f    /* about 35 degrees */
+#define FL_MAX_ANGLE      0.90f    /* about 52 degrees: enough for the steepest part of the Moon path (about 42 degrees) */
 #define FL_SHIP_RADIUS    6.0f
 #define FL_WARN_SECONDS   30.0f    /* proposal, not a fixed rule */
 #define FL_LANE_HALF      70.0f    /* lane half width outside the belt / at belt edges */

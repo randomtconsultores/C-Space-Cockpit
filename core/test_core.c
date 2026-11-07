@@ -221,7 +221,7 @@ static void test_corridor(void)
     flight_init(&F, SHIP_BALANCED, 3);
     F.rock_total = 0; F.mode = FL_MODE_MANUAL; F.throttle = 1.0f;
     flight_input(&F, FL_YAW_RIGHT, 1);
-    for (int i = 0; i < 60 * 120 && F.mode == FL_MODE_MANUAL; i++) { flight_tick(&F); CHECK(hypotf(F.px, F.py) <= FL_CORRIDOR * 1.1f + 0.01f); CHECK(fabsf(F.yaw) <= FL_MAX_ANGLE + 1e-6f); }
+    for (int i = 0; i < 60 * 120 && F.mode == FL_MODE_MANUAL && F.pz < LV_MOON_Z + LV_MOON_ZONE; i++) { flight_tick(&F); CHECK(hypotf(F.px, F.py) <= (lv_moon_in_zone(F.pz) ? LV_MOON_LATERAL : FL_CORRIDOR) * 1.1f + 0.01f); CHECK(fabsf(F.yaw) <= FL_MAX_ANGLE + 1e-6f); }
 }
 static void test_scene(void)
 {
@@ -413,8 +413,8 @@ static void test_turn_rate_heavy_vs_light(void)
     l.pz = LV_ATMO_END + 10.0f; h.pz = LV_ATMO_END + 10.0f;
     for (int i = 0; i < 4; i++) { flight_input(&l, FL_YAW_LEFT, 1); flight_tick(&l); }
     for (int i = 0; i < 8; i++) { flight_input(&h, FL_YAW_LEFT, 1); flight_tick(&h); }
-    CHECK(fabsf(l.yaw_rate + 0.40f) < 1e-4f);
-    CHECK(fabsf(h.yaw_rate + 0.40f) < 1e-4f);
+    CHECK(fabsf(l.yaw_rate + 0.80f) < 1e-4f);
+    CHECK(fabsf(h.yaw_rate + 0.6667f) < 1e-3f);
     int sl = 0, sh = 0;
     for (int i = 0; i < 100 && (sl == 0 || sh == 0); i++) {
         flight_input(&l, FL_YAW_LEFT, 0); flight_input(&h, FL_YAW_LEFT, 0);

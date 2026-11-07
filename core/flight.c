@@ -209,7 +209,7 @@ static int clear_ahead(const Flight *f)
 static void fire_laser(Flight *f, float dx, float dy, float dz)
 {
     if (f->laser_cd > 0.0f || f->energy < 8.0f) return;
-    f->laser_cd = 0.25f; f->energy -= 8.0f; f->laser_flash = 0.10f;
+    f->laser_cd = 0.125f; f->energy -= 8.0f; f->laser_flash = 0.10f;
     push_event(f, FL_EV_FIRE);
     int best = -1; float best_t = 1500.0f;
     for (int i = 0; i < f->rock_total; i++) {
@@ -261,7 +261,7 @@ void flight_tick(Flight *f)
     if (f->laser_cd > 0.0f) f->laser_cd -= dt;
     if (f->laser_flash > 0.0f) f->laser_flash -= dt;
     if (f->shake > 0.0f) f->shake -= dt;
-    f->energy = clampf(f->energy + 20.0f * dt, 0.0f, s->energy_max);
+    f->energy = clampf(f->energy + 40.0f * dt, 0.0f, s->energy_max);
 
     if (f->mode >= FL_MODE_ARRIVED) {           /* terminal states: coast to a stop */
         f->speed = approach(f->speed, 0.0f, s->accel * dt);
@@ -351,7 +351,7 @@ void flight_tick(Flight *f)
         const float wall = lv_moon_in_zone(pz_before) ? LV_MOON_LATERAL : FL_CORRIDOR * 1.1f;
         float rad = hypotf(f->px, f->py);
         if (rad > wall) {
-            float target = wall > rad - 150.0f * dt ? wall : rad - 150.0f * dt;
+            float target = wall > rad - 800.0f * dt ? wall : rad - 800.0f * dt;
             float k = target / rad; f->px *= k; f->py *= k;
         }
     }

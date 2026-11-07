@@ -124,6 +124,16 @@ static void test_sling_quality(void)
     CHECK(rx < LV_MOON_LATERAL);
     CHECK(lv_moon_ring(LV_MOON_RING_SPAN + 1.0f, &rx, &ry) == 1);
     CHECK(lv_moon_ring(LV_MOON_ZONE + 1.0f, &rx, &ry) == 0);
+    /* The steepest part of the path must be flyable: slope angle below the yaw limit. */
+    {
+        float maxslope = 0.0f, ax, ay, bx, by;
+        for (float uu = -LV_MOON_ZONE; uu < LV_MOON_ZONE; uu += 10.0f) {
+            lv_moon_ring(uu, &ax, &ay); lv_moon_ring(uu + 10.0f, &bx, &by);
+            float sl = fabsf(bx - ax) / 10.0f;
+            if (sl > maxslope) maxslope = sl;
+        }
+        CHECK(atanf(maxslope) < FL_MAX_ANGLE * 0.95f);
+    }
     /* The path rejoins the official route (x = 0) at both zone edges, without jumps. */
     CHECK(lv_moon_ring(-LV_MOON_ZONE, &rx, &ry) == 1 && fabsf(rx) < 0.5f);
     CHECK(lv_moon_ring(LV_MOON_ZONE, &rx, &ry) == 1 && fabsf(rx) < 0.5f);
@@ -288,6 +298,29 @@ static void test_ring_events(void)
     }
 }
 
+static void test_ring_flyable(void)
+{
+    /* A simple pilot that steers towards the path ahead must collect most rings with every ship. */
+    for (int ship = 0; ship < SHIP_TYPE_COUNT; ship++) {
+        flight_init(&F, ship, 7);
+        F.mode = FL_MODE_MANUAL; F.throttle = 0.8f; F.speed = F.spec->max_speed * 0.6f;
+        F.pz = LV_MOON_Z - LV_MOON_ZONE + 5.0f; F.px = 0.0f; F.py = 0.0f;
+        int pass = 0, miss = 0;
+        for (int i = 0; i < 60 * 90 && F.pz < LV_MOON_Z + LV_MOON_ZONE - 10.0f; i++) {
+            float tx, ty, ahead = 250.0f;
+            if (!lv_moon_ring(F.pz + ahead - LV_MOON_Z, &tx, &ty)) tx = 0.0f;
+            float want = atan2f(tx - F.px, ahead), err = want - F.yaw;
+            flight_input(&F, FL_YAW_RIGHT, err > 0.04f && F.yaw_rate < 0.6f * F.spec->turn_rate);
+            flight_input(&F, FL_YAW_LEFT, err < -0.04f && F.yaw_rate > -0.6f * F.spec->turn_rate);
+            flight_tick(&F);
+            int e;
+            while ((e = flight_event_take(&F)) != FL_EV_NONE) { if (e == FL_EV_RING_PASS) pass++; if (e == FL_EV_RING_MISS) miss++; }
+        }
+        printf("ring pilot ship %d: pass=%d miss=%d\n", ship, pass, miss);
+        CHECK(pass >= 14 && pass > 3 * miss);
+    }
+}
+
 static void test_sling(void)
 {
     int g, o, m; float ds, df;
@@ -392,14 +425,14 @@ static int ascent_ticks(float throttle, int ship_type)
 
 static void test_ascent_duration(void)
 {
-    /* Full throttle (100%): 100-140 seconds. */
+    /* Full throttle (100%): 40-70 seconds (game speed doubled; was 100-140 s). */
     int ticks100 = ascent_ticks(1.0f, SHIP_BALANCED);
     float seconds100 = ticks100 / 60.0f;
     printf("ascent 100%%: %d ticks = %.1f s\n", ticks100, seconds100);
-    CHECK(seconds100 >= 100.0f && seconds100 <= 140.0f);
+    CHECK(seconds100 >= 40.0f && seconds100 <= 70.0f);
 
-    /* Never less than 60 s even at full throttle. */
-    CHECK(seconds100 >= 60.0f);
+    /* Never less than 30 s even at full throttle. */
+    CHECK(seconds100 >= 30.0f);
 
     /* Partial throttle (60%, 30%): takes longer, no upper bound but must
        eventually exit (guard limits ticks). */
@@ -573,7 +606,7 @@ static void test_lunar_phase_duration(void)
     {
         float dur = (exit_tick - entry_tick) / 60.0f;
         printf("cruise lunar duration=%.1f s\n", dur);
-        CHECK(dur >= 45.0f && dur <= 75.0f);
+        CHECK(dur >= 25.0f && dur <= 45.0f);
     }
 
     /* Max speed. */
@@ -591,7 +624,7 @@ static void test_lunar_phase_duration(void)
     {
         float dur = (exit_tick - entry_tick) / 60.0f;
         printf("max lunar duration=%.1f s\n", dur);
-        CHECK(dur >= 40.0f && dur <= 75.0f);
+        CHECK(dur >= 15.0f && dur <= 30.0f);
     }
 }
 
@@ -643,6 +676,7 @@ int main(void)
     test_autopilot_atmosphere();
     test_sling();
     test_ring_events();
+    test_ring_flyable();
     test_tilt();
     test_checkpoint_phases();
     test_instances_independent();
