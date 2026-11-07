@@ -49,10 +49,20 @@ float lv_tilt_profile(float z)
 /* Maximum allowed speed fraction during ascent: 15% at ground, 100% at
    LV_ATMO_END. Pure function of z, linear ramp. Used to stretch the ascent
    to ~2 minutes without changing the route length. */
+float lv_speed_boost(float z)
+{
+    float z0 = LV_MOON_Z + LV_MOON_ZONE;
+    if (z <= z0) return 1.0f;
+    float t = (z - z0) / LV_BOOST_RAMP;
+    if (t >= 1.0f) return LV_SPEED_BOOST;
+    t = t * t * (3.0f - 2.0f * t);
+    return 1.0f + (LV_SPEED_BOOST - 1.0f) * t;
+}
+
 float lv_max_speed_factor(float z)
 {
     if (z <= 0.0f) return LV_ATMO_MIN_SPEED;
-    if (z >= LV_ATMO_END) return LV_ATMO_MAX_SPEED;
+    if (z >= LV_ATMO_END) return LV_ATMO_MAX_SPEED * lv_speed_boost(z);
     float t = z / LV_ATMO_END;
     return LV_ATMO_MIN_SPEED + (LV_ATMO_MAX_SPEED - LV_ATMO_MIN_SPEED) * t;
 }

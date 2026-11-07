@@ -231,7 +231,7 @@ static void update_alert(Flight *f)
 {
     const ShipSpec *s = f->spec;
     float left = f->route.length - f->pz;
-    float cruise = 0.6f * s->max_speed;
+    float cruise = 0.6f * s->max_speed * lv_speed_boost(f->pz);
     int a = FL_ALERT_NONE;
     if (f->mode == FL_MODE_MANUAL && in_belt(f)) a = FL_ALERT_MANUAL_REQUIRED;
     else if (f->mode == FL_MODE_AUTOPILOT && f->pz < f->route.belt_end &&
@@ -287,7 +287,7 @@ void flight_tick(Flight *f)
         float ty = clampf(-f->px / 400.0f, -0.35f, 0.35f);
         float tp = clampf(-f->py / 400.0f, -0.35f, 0.35f);
         float cap = 0.6f;
-        if (f->pz > f->route.belt_start - 600.0f) cap = 0.35f;
+        if (f->pz > f->route.belt_start - 1500.0f) cap = 0.35f;
         f->yaw = approach(f->yaw, ty, s->turn_rate * dt);
         f->pitch = approach(f->pitch, tp, s->turn_rate * dt);
         f->throttle = approach(f->throttle, cap, 0.5f * dt);
@@ -337,7 +337,7 @@ void flight_tick(Flight *f)
     /* Lunar sling: the speed target rises with the quality (low over the surface). */
     if (target_speed > 0.0f && lv_moon_in_zone(f->pz))
         target_speed += s->max_speed * LV_SLING_SPEED_RATIO * lv_sling_quality(lv_moon_alt(f->px, f->py, f->pz));
-    f->speed = approach(f->speed, target_speed, s->accel * dt);
+    f->speed = approach(f->speed, target_speed, s->accel * lv_speed_boost(f->pz) * dt);
     float cp = cosf(f->pitch);
     float dx = sinf(f->yaw) * cp, dy = sinf(f->pitch), dz = cosf(f->yaw) * cp;
     float step = f->speed * dt;
@@ -451,7 +451,7 @@ float flight_stat(const Flight *f, int id)
     float prog = clampf(f->pz / f->route.length, 0.0f, 1.0f);
     switch (id) {
     case FS_SPEED: return f->speed;
-    case FS_SPEED_MAX: return s->max_speed;
+    case FS_SPEED_MAX: return s->max_speed * lv_speed_boost(f->pz);
     case FS_THROTTLE: return f->throttle;
     case FS_FUEL: return f->fuel;
     case FS_FUEL_MAX: return s->fuel_max;
@@ -461,7 +461,7 @@ float flight_stat(const Flight *f, int id)
     case FS_ENERGY: return f->energy;
     case FS_ENERGY_MAX: return s->energy_max;
     case FS_PROGRESS: return prog;
-    case FS_ETA_SECONDS: { float v = f->speed > 5.0f ? f->speed : 0.6f * s->max_speed; return (f->route.length - f->pz) / v; }
+    case FS_ETA_SECONDS: { float v = f->speed > 5.0f ? f->speed : 0.6f * s->max_speed * lv_speed_boost(f->pz); return (f->route.length - f->pz) / v; }
     case FS_PILOT_DAYS: return prog * f->route.days;
     case FS_EARTH_DAYS: return prog * f->route.days * f->route.dilation;
     case FS_ROUTE_DAYS: return f->route.days;

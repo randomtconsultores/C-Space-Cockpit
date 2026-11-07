@@ -45,9 +45,11 @@ struct Flight;
 #define LV_SLING_FUEL     50.0f    /* fuel credit */
 #define LV_MIN_FUEL_MARGIN_RATIO 0.10f  /* minimum fuel ratio at arrival */
 
-#define ROUTE_LENGTH      16000.0f /* total route length (z) */
-#define BELT_START        11000.0f /* asteroid belt start (z) */
-#define BELT_END          14000.0f /* asteroid belt end (z) */
+#define LV_SPEED_BOOST    3.0f     /* speed cap multiplier after the lunar zone (ascent and Moon keep the intro pacing) */
+#define LV_BOOST_RAMP     1500.0f  /* distance over which the boost ramps in after the lunar zone */
+#define ROUTE_LENGTH      25000.0f /* total route length (z) */
+#define BELT_START        12000.0f /* asteroid belt start (z) */
+#define BELT_END          21000.0f /* asteroid belt end (z) */
 
 enum LevelPhase {
     LV_ASCENT = 0,
@@ -66,6 +68,7 @@ float lv_drag_factor(float d);
 float lv_turn_factor(float d);
 float lv_fuel_factor(float d);
 float lv_tilt_profile(float z);   /* target tilt angle (radians) at z during ascent */
+float lv_speed_boost(float z);      /* 1 up to the end of the lunar zone, ramps to LV_SPEED_BOOST */
 float lv_max_speed_factor(float z); /* max allowed speed fraction in atmosphere (0..1) */
 int lv_moon_in_zone(float z);   /* 1 if z is inside the lunar zone */
 void lv_moon_center(float *x, float *y, float *z);   /* Moon centre in world space */

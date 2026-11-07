@@ -103,7 +103,7 @@ static void test_handover(void)
     CHECK(F.mode == FL_MODE_MANUAL); CHECK(warned); CHECK(manual_ev);
     CHECK(F.hull == F.spec->hull_max);
     CHECK(F.pz >= F.route.belt_start - 160.0f && F.pz < F.route.belt_start);
-    CHECK(F.speed <= 0.36f * F.spec->max_speed + 1.0f);
+    CHECK(F.speed <= 0.36f * LV_SPEED_BOOST * F.spec->max_speed + 1.0f);
     CHECK(flight_stat(&F, FS_ALERT) == FL_ALERT_MANUAL_REQUIRED);
 }
 static void test_autopilot_toggle(void)
@@ -149,7 +149,8 @@ static void test_tamper_destroyable(void)
         F.yaw = atan2f(dx0, dz0);
         F.pitch = -atan2f(dy0, sqrtf(dx0*dx0 + dz0*dz0));
     }
-    for (int shot = 0; shot < 3; shot++) {
+    F.throttle = 0.0f; F.speed = 0.0f; F.pressed = 0; flight_input(&F, FL_THROTTLE_UP, 0);
+    for (int shot = 0; shot < 6 && F.rocks[found_central].alive; shot++) {
         float dx = F.rocks[found_central].x - F.px;
         float dy = F.rocks[found_central].y - F.py;
         float dz = F.rocks[found_central].z - F.pz;

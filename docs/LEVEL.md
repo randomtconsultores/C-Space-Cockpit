@@ -3,7 +3,7 @@
 Layout along z (constants in core/level.h):
 - Ascent and atmosphere: z in [0, LV_ATMO_END = 2500]. The flight starts on the pad (pz = 0, speed 0, manual mode, throttle 0).
 - Transit to the Moon, lunar zone centred at LV_MOON_Z = 7500 (width LV_MOON_ZONE = 2250).
-- Asteroid belt: BELT_START .. BELT_END (11000..14000). Exit: up to ROUTE_LENGTH (16000).
+- Asteroid belt: BELT_START .. BELT_END (12000..21000). Exit: up to ROUTE_LENGTH (25000).
 - The phase (LevelPhase) is derived from pz only. No phase state is stored.
 
 Formulas (d = density, 1 on the ground, 0 at LV_ATMO_END and above):
@@ -71,3 +71,6 @@ The browser shell (`web/cockpit.js`) shows event text (via `CockpitStory.textFor
 - **Ring reward**: FL_EV_RING_PASS (20) when the ship crosses a guide ring plane within LV_MOON_RING_RADIUS (60) of its centre, FL_EV_RING_MISS (21) otherwise. JS keeps a combo: each consecutive pass plays a short chime one pentatonic step higher (up to 8), a miss resets it.
 
 - **Game speed doubled and more mobility** (Director, 2026-11-07): ship max speed and acceleration x2 (light 260/120, balanced 200/90, heavy 150/60), laser cooldown 0.125 s and energy regeneration 40/s (same weapon rhythm relative to the faster belt), turn rates light 2.0, balanced 1.5, heavy 1.0 rad/s with turn_accel 12, 9, 5 and damping 16, 12, 6. FL_MAX_ANGLE raised from 0.61 to 0.90 rad because the Moon path needed up to about 42 degrees. The ring span is 1100 so the whole path stays below the yaw limit (test_ring_flyable: every ship collects all 23 rings with a simple pilot). Durations are now about 50 s of ascent at full throttle, 84 s at 60%, and about 35 s (cruise) or 22 s (max) in the lunar zone. The soft wall pull-in is 800 u/s so a fast ship cannot drift through it.
+
+- **Tripled belt distance and top speed** (Director, 2026-11-07): the belt is 9000 long (BELT_START 12000, BELT_END 21000, ROUTE_LENGTH 25000) with the same 96 rocks, so the spacing between asteroids is three times larger. The speed cap is multiplied by `lv_speed_boost(z)`: 1 up to the end of the lunar zone (ascent and sling keep the intro pacing) and a smooth ramp to `LV_SPEED_BOOST = 3` over `LV_BOOST_RAMP = 1500` after it (balanced ship: 600 u/s). Acceleration scales with the boost, the autopilot starts slowing 1500 before the belt, `fuel_per_unit` is scaled by about 0.64 so the route cost still fits in the tank, the checkpoint speed bound uses the boost and FL_GENERATOR_VERSION is 5.
+- **Tower voice** (`web/comms.js`): a pure director fires each line once (radio check, ignition, liftoff, ascent milestones, heat, atmosphere exit, mission reason, Moon advice, sling results, belt warnings, farewell, final transmission or signal lost). The player uses the browser speech synthesis (pt-PT voice if available, low pitch), Web Audio radio static that grows with distance, and always shows a subtitle (`#comms`). It respects the sound toggle and pause. Texts are provisional; the mission reason stays vague until the Director decides what the technology that saves Earth is.

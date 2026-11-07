@@ -17,7 +17,7 @@
 #define FL_LANE_HALF      70.0f    /* lane half width outside the belt / at belt edges */
 #define FL_LANE_HALF_BELT 45.0f    /* lane half width at the centre of the belt */
 #define FL_LANE_TRANSITION 300.0f  /* transition distance at each belt edge */
-#define FL_GENERATOR_VERSION 4
+#define FL_GENERATOR_VERSION 5
 #define FL_TAMPER_COUNT   4        /* number of blockage walls in the belt */
 #define FL_TAMPER_RADIUS_CENTRAL_LO 26.0f
 #define FL_TAMPER_RADIUS_CENTRAL_HI 30.0f

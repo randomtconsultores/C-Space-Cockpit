@@ -102,7 +102,7 @@ static void test_validation_rules(void)
     c = base; c.pz = -1.0f; CHECK(cp_validate(&c) == CP_INVALID);
     /* pz >= route length */
     c = base; c.pz = ROUTE_LENGTH; CHECK(cp_validate(&c) == CP_INVALID);
-    c = base; c.pz = 20000.0f; CHECK(cp_validate(&c) == CP_INVALID);
+    c = base; c.pz = ROUTE_LENGTH + 5000.0f; CHECK(cp_validate(&c) == CP_INVALID);
     /* hypot(px, py) > corridor * 1.1 */
     c = base; c.px = 400.0f; c.py = 0.0f; CHECK(cp_validate(&c) == CP_INVALID);
     /* |yaw| > FL_MAX_ANGLE */
@@ -115,7 +115,7 @@ static void test_validation_rules(void)
     c = base; c.throttle = 1.1f; CHECK(cp_validate(&c) == CP_INVALID);
     /* speed out of range */
     c = base; c.speed = -1.0f; CHECK(cp_validate(&c) == CP_INVALID);
-    c = base; c.speed = ship_spec(SHIP_BALANCED)->max_speed + 1.0f; CHECK(cp_validate(&c) == CP_INVALID);
+    c = base; c.speed = ship_spec(SHIP_BALANCED)->max_speed * LV_SPEED_BOOST * 1.3f; CHECK(cp_validate(&c) == CP_INVALID);
     /* fuel out of range */
     c = base; c.fuel = -1.0f; CHECK(cp_validate(&c) == CP_INVALID);
     c = base; c.fuel = 100000.0f; CHECK(cp_validate(&c) == CP_INVALID);

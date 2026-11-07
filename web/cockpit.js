@@ -37,6 +37,7 @@
   function handleEvents() {
     var ev;
     while ((ev = core._cs_event_take()) !== 0) {
+      if (commsDirector) commsPlayer.push(commsDirector.event(ev));
       if (ev === 21) ringCombo = 0;
       var synthPlayed = ev === 20 ? (typeof CockpitSfx !== "undefined" && CockpitSfx.play(20, 1, ringCombo++)) : (typeof CockpitSfx !== "undefined" && CockpitSfx.isSfxEvent(ev)) ? CockpitSfx.play(ev, 1) : false;
       if (!synthPlayed) sound(CockpitEvents.soundFor(ev));
@@ -50,6 +51,23 @@
         }
       }
     }
+  }
+  /* Tower voice: stat-driven lines each frame, event lines from handleEvents. */
+  var commsDirector = null, commsPlayer = null;
+  function statGetter(id) { return core ? core._cs_stat(id) : 0; }
+  function commsInit() {
+    if (typeof CockpitComms === "undefined") return;
+    if (!commsDirector) {
+      commsDirector = CockpitComms.createDirector();
+      commsPlayer = CockpitComms.createPlayer({ node: document.getElementById("comms"), audio: typeof CockpitSynth !== "undefined" ? CockpitSynth : null });
+    }
+    commsPlayer.cancel(); commsDirector.reset(); commsPlayer.setEnabled(soundOn);
+  }
+  function updateComms(now) {
+    if (!commsDirector) return;
+    commsPlayer.setStatic(statGetter(CockpitHud.STAT.ALTITUDE));
+    commsPlayer.push(commsDirector.step(statGetter));
+    commsPlayer.update(now);
   }
   function resize() {
     var r = stage.getBoundingClientRect(); dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -104,6 +122,7 @@
       /* music: update music each frame */
       if (musicDirector) musicDirector.update(function (id) { return core ? core._cs_stat(id) : 0; }, now);  // music:
       handleEvents();
+      updateComms(now);
       if (typeof CockpitEngine !== "undefined" && typeof CockpitSynth !== "undefined") {
         if (core._cs_stat(CockpitHud.STAT.MODE) >= 2) CockpitEngine.silence(CockpitSynth);
         else CockpitEngine.update(CockpitSynth, core._cs_stat(CockpitHud.STAT.THROTTLE), core._cs_stat(CockpitHud.STAT.ATMO_DENSITY),
@@ -139,6 +158,7 @@
     if (core._cs_init(shipType, seed) !== 0) { setStatus("Tipo de nave inválido."); return; }
     menu.hidden = true; endNode.hidden = true; ended = false; paused = false; autoPaused = false;
     if (pauseNode) pauseNode.hidden = true;
+    commsInit();
     accum = 0; resize();
     simWindowStart = performance.now();
     if (!running) { running = true; last = performance.now(); requestAnimationFrame(frame); }
@@ -154,6 +174,7 @@
     /* music: pause/resume music */
     if (typeof CockpitEngine !== "undefined" && paused) CockpitEngine.silence(CockpitSynth);
     if (musicDirector) { if (paused) musicDirector.pause(); else musicDirector.resume(); }  // music:
+    if (commsPlayer) { if (paused) commsPlayer.pause(); else commsPlayer.resume(); }
     if (paused) releaseAll();
     else { last = performance.now(); accum = 0; fpsSamples = []; fpsSum = 0; lastDebug = 0; }
   }
@@ -272,6 +293,7 @@
   document.getElementById("sound").addEventListener("click", function (e) {
     soundOn = !soundOn; e.target.textContent = soundOn ? "SOM LIGADO" : "SOM DESLIGADO"; e.target.setAttribute("aria-pressed", String(!soundOn));
     /* music: respect sound button */
+    if (commsPlayer) commsPlayer.setEnabled(soundOn);
     if (typeof CockpitSynth !== "undefined") CockpitSynth.setSound(soundOn);  // music:
   });
   var btnKeymap = document.getElementById("btn-keymap");

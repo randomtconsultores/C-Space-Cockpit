@@ -29,6 +29,7 @@
     <canvas id="gl" aria-label="Vista do cockpit"></canvas>
     <canvas id="hud" aria-hidden="true"></canvas>
     <div id="debug" hidden style="position:absolute;inset:0;pointer-events:none;color:#6dff85;font-family:monospace;white-space:pre;padding:.5rem;line-height:1.4;text-align:left;"></div>
+    <div id="comms" aria-live="polite" style="position:absolute;top:4.2rem;left:8%;right:8%;text-align:center;color:#ffd27a;font-family:monospace;font-size:1rem;text-shadow:0 0 6px #000,0 0 2px #000;opacity:0;transition:opacity .25s;pointer-events:none;"></div>
     <div id="event-msg" style="position:absolute;top:2rem;left:0;right:0;text-align:center;color:#9fd6a8;font-family:monospace;font-size:1rem;pointer-events:none;"></div>
     <span id="pitch-text">PITCH NORMAL</span>
     <div id="menu" class="panel" hidden>
@@ -81,6 +82,7 @@
   <script src="synth.js"></script>
   <script src="sfx.js"></script>
   <script src="engine.js"></script>
+  <script src="comms.js"></script>
   <script src="music_director.js"></script>
   <script src="render_gl.js"></script>
   <script src="story.js"></script>

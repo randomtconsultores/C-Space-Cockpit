@@ -1,4 +1,5 @@
 #include "checkpoint.h"
+#include "level.h"
 #include <math.h>
 #include <string.h>
 
@@ -32,7 +33,7 @@ int cp_validate(const Checkpoint *cp)
 
     const ShipSpec *s = tmp.spec;
     if (cp->throttle < 0.0f || cp->throttle > 1.0f) return CP_INVALID;
-    if (cp->speed < 0.0f || cp->speed > s->max_speed) return CP_INVALID;
+    if (cp->speed < 0.0f || cp->speed > s->max_speed * LV_SPEED_BOOST * (1.0f + LV_SLING_SPEED_RATIO)) return CP_INVALID;
     if (cp->fuel < 0.0f || cp->fuel > s->fuel_max) return CP_INVALID;
     if (cp->hull <= 0.0f || cp->hull > s->hull_max) return CP_INVALID;
     if (cp->energy < 0.0f || cp->energy > s->energy_max) return CP_INVALID;
