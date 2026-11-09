@@ -1,9 +1,9 @@
-/* Tower comms: "Houston" voice that accompanies the whole flight.
+/* Tower comms: real NASA recordings ("Houston") that accompany the whole flight.
    UMD. The director (which line fires when) is pure and testable in Node;
-   the player speaks lines with the browser speech synthesis, adds radio
-   static through the shared Web Audio context and always shows a subtitle.
-   It degrades silently without speech or Web Audio. Code comments in English;
-   player-visible text is Portuguese (pt-PT). Story text is provisional. */
+   the player plays public-domain NASA clips, adds a short radio squelch
+   through the shared Web Audio context and always shows a subtitle (English
+   original plus Portuguese translation). It degrades to subtitles only when
+   audio is unavailable. Code comments in English; subtitles in Portuguese. */
 (function (root, factory) {
   "use strict";
   if (typeof module === "object" && module.exports) module.exports = factory();
@@ -13,32 +13,25 @@
 
   /* Stat ids mirror core/FlStat (web/hud.js). */
   var S = { THROTTLE: 2, DISTANCE_LEFT: 15, MODE: 16, PHASE: 23, ALTITUDE: 24 };
-  var EV = { ATMO_EXIT: 13, MOON: 14, SLING_GOOD: 15, SLING_OK: 16, SLING_MISS: 17, MOON_COLLISION: 19 };
+  var EV = { HULL_CRITICAL: 9, ATMO_EXIT: 13, MOON_COLLISION: 19 };
   var PH = { ASCENT: 0, ATMO_EXIT: 1, TRANSIT: 2, MOON: 3, BELT: 4, EXIT: 5 };
   var ROUTE_LENGTH = 25000;
 
-  /* text: subtitle. say: spoken form (phonetic where the voice needs help).
-     prio: 1 = may be dropped when the queue is busy, 2 = always kept. */
+  /* Real NASA recordings (public domain, see docs/CREDITS.md). Each line has the
+     audio clip, the English original (en) and a Portuguese translation (text)
+     for the subtitle. prio: 1 = may be dropped when the queue is busy. */
   var LINES = {
-    RADIO:    { text: "Houston a Cockpit. Houston a Cockpit. Verificação de rádio. Está a ouvir-nos?", say: "Hiuston a Cockpit. Hiuston a Cockpit. Verificação de rádio. Está a ouvir-nos?", prio: 2 },
-    IGNITION: { text: "Ignição confirmada. Motores a cem por cento. Boa viagem.", say: "Ignição confirmada. Motores a cem por cento. Boa viagem.", prio: 2 },
-    LIFTOFF:  { text: "Descolagem. Já limpou a torre. Mantenha a subida vertical.", say: "Descolagem. Já limpou a torre. Mantenha a subida vertical.", prio: 2 },
-    CLIMB:    { text: "Trinta quilómetros. Trajetória nominal. Está a ir muito bem.", say: "Trinta quilómetros. Trajetória nominal. Está a ir muito bem.", prio: 1 },
-    HEAT:     { text: "A atravessar a zona de calor máximo. Aguente firme, Cockpit.", say: "A atravessar a zona de calor máximo. Aguente firme, Cockpit.", prio: 2 },
-    HIGH:     { text: "Oitenta quilómetros. A atmosfera fica para trás.", say: "Oitenta quilómetros. A atmosfera fica para trás.", prio: 1 },
-    ATMO_EXIT:{ text: "Saiu da atmosfera. Parabéns, Cockpit. A torre está orgulhosa de si.", say: "Saiu da atmosfera. Parabéns, Cockpit. A torre está orgulhosa de si.", prio: 2 },
-    REASON:   { text: "Recorde a missão: levar a Terra a tempo da tecnologia que a pode salvar. O relógio não pára.", say: "Recorde a missão: levar a Terra a tempo da tecnologia que a pode salvar. O relógio não pára.", prio: 2 },
-    MOON:     { text: "Aproxima-se da Lua. Siga os anéis: a trajetória foi calculada pelos cientistas terrestres.", say: "Aproxima-se da Lua. Siga os anéis: a trajetória foi calculada pelos cientistas terrestres.", prio: 2 },
-    SLING_GOOD:{ text: "Fantástico. Passagem perfeita. A Lua deu-lhe um grande impulso.", say: "Fantástico. Passagem perfeita. A Lua deu-lhe um grande impulso.", prio: 2 },
-    SLING_OK: { text: "Boa passagem. Ganhou algum impulso. Siga em frente.", say: "Boa passagem. Ganhou algum impulso. Siga em frente.", prio: 2 },
-    SLING_MISS:{ text: "Passagem demasiado alta. Sem impulso desta vez. Siga em frente.", say: "Passagem demasiado alta. Sem impulso desta vez. Siga em frente.", prio: 2 },
-    CRASH_MOON:{ text: "Contacto com a superfície lunar. Verifique o casco. Corrija a rota.", say: "Contacto com a superfície lunar. Verifique o casco. Corrija a rota.", prio: 2 },
-    CRUISE:   { text: "Velocidade máxima autorizada. Daqui para a frente a Terra só consegue ouvi-lo em rádio fraco.", say: "Velocidade máxima autorizada. Daqui para a frente a Terra só consegue ouvi-lo em rádio fraco.", prio: 1 },
-    BELT:     { text: "Atenção, faixa de asteroides à frente. Controlo manual. Use o laser.", say: "Atenção, faixa de asteroides à frente. Controlo manual. Use o laser.", prio: 2 },
-    BELT_MID: { text: "O sinal está a enfraquecer. Está sozinho aí fora. Confiamos em si.", say: "O sinal está a enfraquecer. Está sozinho aí fora. Confiamos em si.", prio: 1 },
-    EXIT:     { text: "Atravessou a faixa. Boa sorte, Cockpit. A Terra conta consigo. Adeus.", say: "Atravessou a faixa. Boa sorte, Cockpit. A Terra conta consigo. Adeus.", prio: 2 },
-    ARRIVED:  { text: "Houston, última transmissão. Missão cumprida. Adeus e obrigado.", say: "Hiuston, última transmissão. Missão cumprida. Adeus e obrigado.", prio: 2 },
-    LOST:     { text: "Cockpit, perdemos o sinal. Cockpit, está aí? Cockpit...", say: "Cockpit, perdemos o sinal. Cockpit, está aí? Cockpit...", prio: 2 }
+    RADIO:    { clip: "radio", en: "Houston, go ahead.", text: "Houston, pode falar.", prio: 2 },
+    IGNITION: { clip: "ignition", rumble: true, en: "Ten seconds. Go for main engine start.", text: "Dez segundos. Luz verde para o arranque dos motores.", prio: 2 },
+    LIFTOFF:  { clip: "liftoff", en: "Liftoff. We have a liftoff.", text: "Descolagem. Temos descolagem.", prio: 2 },
+    CLIMB:    { clip: "climb", en: "Roll program. Roger, roll program.", text: "Programa de rotação. Recebido.", prio: 1 },
+    HEAT:     { clip: "heat", en: "Go ahead, throttle up. Roger, Houston, throttle up.", text: "Pode acelerar a fundo. Recebido, Houston.", prio: 2 },
+    ATMO_EXIT:{ clip: "atmo_exit", en: "We see a nominal engine cutoff. Welcome to space.", text: "Corte dos motores nominal. Bem-vindos ao espaço.", prio: 2 },
+    REASON:   { clip: "reason", en: "We choose to go to the Moon, not because it is easy, but because it is hard.", text: "Escolhemos ir à Lua, não porque é fácil, mas porque é difícil.", prio: 2 },
+    PROBLEM:  { clip: "problem", en: "Houston, we've had a problem.", text: "Houston, tivemos um problema.", prio: 2 },
+    EXIT:     { clip: "godspeed", en: "Godspeed.", text: "Boa sorte na viagem.", prio: 2 },
+    ARRIVED:  { clip: "arrived", en: "Houston, Tranquility Base here. The Eagle has landed.", text: "Houston, daqui Base da Tranquilidade. A Águia aterrou.", prio: 2 },
+    FAREWELL: { clip: "farewell", en: "We came in peace for all mankind.", text: "Viemos em paz, em nome de toda a humanidade.", prio: 2 }
   };
 
   /* Radio static 0..1 from the distance covered: clean at the pad, noisy far away. */
@@ -53,7 +46,7 @@
       if (fired[id]) return;
       fired[id] = true;
       var l = LINES[id];
-      out.push({ id: id, text: l.text, say: l.say, prio: l.prio });
+      out.push({ id: id, clip: l.clip, rumble: !!l.rumble, en: l.en, text: l.text, prio: l.prio });
     }
     return {
       reset: function () { fired = {}; started = false; },
@@ -61,20 +54,13 @@
       step: function (get) {
         var out = [], z = get(S.ALTITUDE), ph = get(S.PHASE), mode = get(S.MODE);
         if (!started) { started = true; fire(out, "RADIO"); }
-        if (mode === 3 || mode === 4) { fire(out, "LOST"); return out; }
-        if (mode === 2) { fire(out, "ARRIVED"); return out; }
+        if (mode === 3 || mode === 4) return out;
+        if (mode === 2) { fire(out, "ARRIVED"); fire(out, "FAREWELL"); return out; }
         if (get(S.THROTTLE) > 0.05) fire(out, "IGNITION");
         if (z > 40) fire(out, "LIFTOFF");
         if (z > 750) fire(out, "CLIMB");
         if (z > 1300 && ph === PH.ASCENT) fire(out, "HEAT");
         if (z > 2000 && ph === PH.ASCENT) fire(out, "HIGH");
-        if (ph === PH.TRANSIT && get(S.DISTANCE_LEFT) > 0) {
-          if (fired.MOON && z > 10500) fire(out, "CRUISE");
-        }
-        if (ph === PH.BELT) {
-          fire(out, "BELT");
-          if (z > 16500) fire(out, "BELT_MID");
-        }
         if (ph === PH.EXIT) fire(out, "EXIT");
         return out;
       },
@@ -82,67 +68,68 @@
       event: function (ev) {
         var out = [];
         if (ev === EV.ATMO_EXIT) { fire(out, "ATMO_EXIT"); fire(out, "REASON"); }
-        else if (ev === EV.MOON) fire(out, "MOON");
-        else if (ev === EV.SLING_GOOD) fire(out, "SLING_GOOD");
-        else if (ev === EV.SLING_OK) fire(out, "SLING_OK");
-        else if (ev === EV.SLING_MISS) fire(out, "SLING_MISS");
-        else if (ev === EV.MOON_COLLISION) fire(out, "CRASH_MOON");
+        else if (ev === EV.MOON_COLLISION || ev === EV.HULL_CRITICAL) fire(out, "PROBLEM");
         return out;
       }
     };
   }
 
-  /* Player. env (all optional, injectable for tests): synth (speechSynthesis),
-     Utter (SpeechSynthesisUtterance), node (subtitle element), synthAudio (CockpitSynth). */
+  /* Player. env (all optional, injectable for tests): Audio (constructor of
+     HTMLAudioElement-like objects), base (URL prefix of the clips), node
+     (subtitle element), audio (CockpitSynth, for the radio squelch). */
   function createPlayer(env) {
     env = env || {};
-    var synth = env.synth !== undefined ? env.synth : (typeof speechSynthesis !== "undefined" ? speechSynthesis : null);
-    var Utter = env.Utter || (typeof SpeechSynthesisUtterance !== "undefined" ? SpeechSynthesisUtterance : null);
+    var AudioCtor = env.Audio !== undefined ? env.Audio : (typeof Audio !== "undefined" ? Audio : null);
+    var base = env.base !== undefined ? env.base : "sounds/nasa/";
     var node = env.node || null, audio = env.audio || null;
-    var queue = [], current = null, until = 0, enabled = true, noise = 0;
+    var queue = [], current = null, until = 0, enabled = true, noise = 0, clip = null, rumble = null;
 
-    function pickVoice() {
-      if (!synth || !synth.getVoices) return null;
-      var v = synth.getVoices() || [], i;
-      for (i = 0; i < v.length; i++) if (v[i].lang === "pt-PT") return v[i];
-      for (i = 0; i < v.length; i++) if (/^pt/i.test(v[i].lang || "")) return v[i];
-      return null;
-    }
-    function burst(level, ms) {
+    function squelch(level, ms) {
       var ctx = audio && audio.getContext && audio.getContext(), master = audio && audio.getMaster && audio.getMaster();
       if (!ctx || !master) return;
       try {
         var len = Math.floor(ctx.sampleRate * ms / 1000), buf = ctx.createBuffer(1, len, ctx.sampleRate), d = buf.getChannelData(0);
         for (var i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / len);
         var src = ctx.createBufferSource(); src.buffer = buf;
-        var f = ctx.createBiquadFilter(); f.type = "bandpass"; f.frequency.value = 1800; f.Q.value = 0.7;
-        var g = ctx.createGain(); g.gain.value = 0.05 + 0.15 * level;
+        var f = ctx.createBiquadFilter(); f.type = "bandpass"; f.frequency.value = 2200; f.Q.value = 0.8;
+        var g = ctx.createGain(); g.gain.value = 0.03 + 0.08 * level;
         src.connect(f); f.connect(g); g.connect(master); src.start();
       } catch (e) { /* audio is optional */ }
     }
-    function show(text) { if (node) { node.textContent = text ? "HOUSTON: " + text : ""; node.style.opacity = text ? "1" : "0"; } }
-    function finish() {
-      if (!current) return;
-      burst(noise, 120); current = null; show("");
+    function show(line) {
+      if (!node) return;
+      node.textContent = line ? "HOUSTON: \u00ab" + line.en + "\u00bb \u2014 " + line.text : "";
+      node.style.opacity = line ? "1" : "0";
+    }
+    function stopAudio() {
+      var a = [clip, rumble];
+      for (var i = 0; i < a.length; i++) if (a[i]) { try { a[i].pause(); } catch (e) { /* optional */ } }
+      clip = null; rumble = null;
+    }
+    function finish() { if (!current) return; stopAudio(); current = null; show(null); }
+    function play(src, volume, onend) {
+      if (!AudioCtor) return null;
+      try {
+        var a = new AudioCtor(base + src + ".mp3");
+        a.volume = volume;
+        if (onend) { a.onended = onend; a.onerror = onend; }
+        var pr = a.play(); if (pr && pr.catch) pr.catch(function () { if (onend) onend(); });
+        return a;
+      } catch (e) { return null; }
     }
     function start(line, now) {
-      current = line; show(line.text);
-      var est = 1800 + line.say.length * 75;
-      until = now + est * 1.6;
-      burst(noise, 220);
-      if (enabled && synth && Utter) {
-        try {
-          var u = new Utter(line.say), v = pickVoice();
-          u.lang = "pt-PT"; if (v) u.voice = v;
-          u.pitch = 0.75; u.rate = 0.93; u.volume = 1 - 0.35 * noise;
-          u.onend = function () { if (current === line) until = 0; };
-          u.onerror = function () { if (current === line) until = Math.min(until, now + est); };
-          synth.speak(u);
-        } catch (e) { /* speech is optional */ }
+      current = line; show(line);
+      var est = 2500 + (line.en.length + line.text.length) * 45;
+      until = now + est * 2; /* safety net if the clip never ends */
+      squelch(noise, 160);
+      if (enabled) {
+        clip = play(line.clip, 0.95, function () { if (current === line) until = Math.min(until, 0); });
+        if (line.rumble) rumble = play("rumble", 0.45, null);
+        if (!clip) until = now + est;
       } else until = now + est;
     }
     return {
-      setEnabled: function (on) { enabled = !!on; if (!on) { this.cancel(); } },
+      setEnabled: function (on) { enabled = !!on; if (!on) stopAudio(); },
       setStatic: function (z) { noise = staticLevel(z); },
       push: function (lines) {
         for (var i = 0; i < lines.length; i++) {
@@ -155,12 +142,9 @@
         if (current && now >= until) finish();
         if (!current && queue.length) start(queue.shift(), now);
       },
-      pause: function () { if (synth && synth.pause) try { synth.pause(); } catch (e) { /* optional */ } },
-      resume: function () { if (synth && synth.resume) try { synth.resume(); } catch (e) { /* optional */ } },
-      cancel: function () {
-        queue.length = 0; current = null; show("");
-        if (synth && synth.cancel) try { synth.cancel(); } catch (e) { /* optional */ }
-      },
+      pause: function () { if (clip && clip.pause) try { clip.pause(); } catch (e) { /* optional */ } if (rumble) try { rumble.pause(); } catch (e) { /* optional */ } },
+      resume: function () { if (clip && clip.play) try { clip.play(); } catch (e) { /* optional */ } if (rumble) try { rumble.play(); } catch (e) { /* optional */ } },
+      cancel: function () { queue.length = 0; stopAudio(); current = null; show(null); },
       busy: function () { return !!current || queue.length > 0; }
     };
   }
