@@ -46,6 +46,7 @@
       if (fired[id]) return;
       fired[id] = true;
       var l = LINES[id];
+      if (!l) return;
       out.push({ id: id, clip: l.clip, rumble: !!l.rumble, en: l.en, text: l.text, prio: l.prio });
     }
     return {
@@ -60,7 +61,6 @@
         if (z > 40) fire(out, "LIFTOFF");
         if (z > 750) fire(out, "CLIMB");
         if (z > 1300 && ph === PH.ASCENT) fire(out, "HEAT");
-        if (z > 2000 && ph === PH.ASCENT) fire(out, "HIGH");
         if (ph === PH.EXIT) fire(out, "EXIT");
         return out;
       },
