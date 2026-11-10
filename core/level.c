@@ -31,6 +31,13 @@ float lv_turn_factor(float d)
     return v;
 }
 
+float lv_fuel_throttle(float t)
+{
+    if (!(t > 0.0f)) t = 0.0f;
+    if (t > 1.0f) t = 1.0f;
+    return LV_FUEL_BASE + LV_FUEL_THROTTLE * t * t;
+}
+
 float lv_fuel_factor(float d)
 {
     return 1.0f + LV_ATMO_FUEL * d;

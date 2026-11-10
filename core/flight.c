@@ -171,8 +171,7 @@ int flight_init(Flight *f, int ship_type, unsigned int seed)
     f->lane_phase_x = rng_range(&f->rng, 0.0f, 6.28f);
     f->lane_phase_y = rng_range(&f->rng, 0.0f, 6.28f);
     generate_rocks(f);
-    float cost = f->route.length * s->fuel_per_unit;
-    f->fuel = clampf(cost * 1.50f, 0.0f, s->fuel_max);
+    f->fuel = s->fuel_max;   /* full tank: fuel is a limit, never refilled */
     f->hull = s->hull_max;
     f->energy = s->energy_max;
     f->throttle = 0.0f;
@@ -236,7 +235,7 @@ static void update_alert(Flight *f)
     if (f->mode == FL_MODE_MANUAL && in_belt(f)) a = FL_ALERT_MANUAL_REQUIRED;
     else if (f->mode == FL_MODE_AUTOPILOT && f->pz < f->route.belt_end &&
              f->route.belt_start - f->pz < cruise * FL_WARN_SECONDS) a = FL_ALERT_HAZARD_AHEAD;
-    if (f->fuel < left * s->fuel_per_unit && f->mode <= FL_MODE_MANUAL) a = FL_ALERT_LOW_FUEL;
+    if (f->fuel < left * s->fuel_per_unit * LV_FUEL_CRUISE && f->mode <= FL_MODE_MANUAL) a = FL_ALERT_LOW_FUEL;
     if (f->hull < s->hull_max * 0.25f && f->mode <= FL_MODE_MANUAL) a = FL_ALERT_HULL_CRITICAL;
     if (a == FL_ALERT_NONE && !lv_moon_in_zone(f->pz) && hypotf(f->px, f->py) > FL_CORRIDOR * 0.9f) a = FL_ALERT_OFF_ROUTE;
     if (a != f->alert_prev) {
@@ -337,12 +336,13 @@ void flight_tick(Flight *f)
     /* Lunar sling: the speed target rises with the quality (low over the surface). */
     if (target_speed > 0.0f && lv_moon_in_zone(f->pz))
         target_speed += s->max_speed * LV_SLING_SPEED_RATIO * lv_sling_quality(lv_moon_alt(f->px, f->py, f->pz));
+    const float speed_prev = f->speed;
     f->speed = approach(f->speed, target_speed, s->accel * lv_speed_boost(f->pz) * dt);
     float cp = cosf(f->pitch);
     float dx = sinf(f->yaw) * cp, dy = sinf(f->pitch), dz = cosf(f->yaw) * cp;
     float step = f->speed * dt;
     f->px += dx * step; f->py += dy * step; f->pz += dz * step;
-    f->fuel = clampf(f->fuel - step * s->fuel_per_unit * fuel_factor, 0.0f, s->fuel_max);
+    f->fuel = clampf(f->fuel - (step * lv_fuel_throttle(f->throttle) * fuel_factor + fabsf(f->speed - speed_prev) * LV_FUEL_ACCEL) * s->fuel_per_unit, 0.0f, s->fuel_max);
 
     /* Soft corridor wall. Inside the lunar zone it is much wider, so the pilot
        can steer towards the Moon. When the wall shrinks again after the zone,
@@ -419,13 +419,6 @@ void flight_tick(Flight *f)
                 }
                 alt = lv_moon_alt(f->px, f->py, f->pz);
             }
-            /* Fuel credit while the ship is low over the surface (the speed gain is in the target above):
-               spread in time
-               (total about LV_SLING_FUEL at quality 1 over LV_SLING_BAND_SECONDS). */
-            float q = lv_sling_quality(alt);
-            if (q > 0.0f && f->fuel > 0.0f && (f->mode == FL_MODE_MANUAL || f->mode == FL_MODE_AUTOPILOT)) {
-                f->fuel = clampf(f->fuel + LV_SLING_FUEL / LV_SLING_BAND_SECONDS * q * dt, 0.0f, s->fuel_max);
-            }
             /* Ring passage: each guide ring crossed within its radius is a reward event. */
             if (f->mode == FL_MODE_MANUAL || f->mode == FL_MODE_AUTOPILOT) {
                 float uk = floorf((f->pz - LV_MOON_Z) / LV_MOON_RING_STEP) * LV_MOON_RING_STEP;
@@ -435,6 +428,7 @@ void flight_tick(Flight *f)
                     push_event(f, dx * dx + dy * dy <= LV_MOON_RING_RADIUS * LV_MOON_RING_RADIUS ? FL_EV_RING_PASS : FL_EV_RING_MISS);
                 }
             }
+            float q = lv_sling_quality(alt);
             /* One-shot summary when the ship crosses the closest-approach plane. */
             if (pz_before < LV_MOON_Z && f->pz >= LV_MOON_Z) {
                 if (q >= 0.7f) push_event(f, FL_EV_SLING_GOOD);
@@ -455,7 +449,7 @@ float flight_stat(const Flight *f, int id)
     case FS_THROTTLE: return f->throttle;
     case FS_FUEL: return f->fuel;
     case FS_FUEL_MAX: return s->fuel_max;
-    case FS_FUEL_ROUTE_COST: return f->route.length * s->fuel_per_unit;
+    case FS_FUEL_ROUTE_COST: return f->route.length * s->fuel_per_unit * LV_FUEL_CRUISE;
     case FS_HULL: return f->hull;
     case FS_HULL_MAX: return s->hull_max;
     case FS_ENERGY: return f->energy;

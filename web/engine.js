@@ -22,11 +22,31 @@
       noiseGain: level * 0.55 * (0.12 + 0.88 * d),
       noiseFreq: 250 + 1700 * t * (0.2 + 0.8 * d),
       lowGain: level * (0.30 + 0.25 * d),
-      lowFreq: 34 + 26 * t + Math.min(sp, 300) * 0.05
+      lowFreq: 34 + 26 * t + Math.min(sp, 300) * 0.05,
+      /* real NASA in-cabin launch recording (loop): body of the sound, always audible inside the cabin */
+      sampleGain: level * (0.55 + 0.35 * d),
+      sampleFreq: 700 + 5500 * t * (0.3 + 0.7 * d),
+      sampleRate: 0.85 + 0.3 * t
     };
   }
 
-  var nodes = null, prevLevel = 0;
+  var nodes = null, prevLevel = 0, sample = null, sampleTried = false;
+
+  /* Load the real cabin recording once; the synthetic layers stay as a quiet fallback and low end. */
+  function loadSample(ctx) {
+    if (sampleTried || typeof fetch !== "function") return;
+    sampleTried = true;
+    fetch("sounds/nasa/cabin.mp3").then(function (r) { return r.ok ? r.arrayBuffer() : Promise.reject(new Error("cabin")); })
+      .then(function (ab) { return new Promise(function (ok, no) { ctx.decodeAudioData(ab, ok, no); }); })
+      .then(function (buf) {
+        if (!nodes || nodes.ctx !== ctx) return;
+        var src = ctx.createBufferSource(); src.buffer = buf; src.loop = true;
+        var f = ctx.createBiquadFilter(); f.type = "lowpass"; f.frequency.value = 1500;
+        var g = ctx.createGain(); g.gain.value = 0;
+        src.connect(f); f.connect(g); g.connect(nodes.out); src.start();
+        sample = { src: src, f: f, g: g };
+      }).catch(function () { sampleTried = true; });
+  }
 
   function build(ctx, master) {
     var len = ctx.sampleRate * 2, buf = ctx.createBuffer(1, len, ctx.sampleRate), data = buf.getChannelData(0);
@@ -44,7 +64,7 @@
     var out = ctx.createGain(); out.gain.value = 0.7;
     ng.connect(out); lg.connect(out); out.connect(master);
     noise.start(); o1.start(); o2.start();
-    return { ctx: ctx, nf: nf, ng: ng, o1: o1, o2: o2, lg: lg, lf: lf };
+    return { ctx: ctx, nf: nf, ng: ng, o1: o1, o2: o2, lg: lg, lf: lf, out: out };
   }
 
   /* synth: CockpitSynth-like object (getContext, getMaster). */
@@ -53,6 +73,14 @@
     var ctx = synth.getContext();
     if (!nodes || nodes.ctx !== ctx) { try { nodes = build(ctx, synth.getMaster()); } catch (e) { nodes = null; return; } }
     var p = params(throttle, density, speed, fuel), t = ctx.currentTime;
+    loadSample(ctx);
+    var syn = sample ? 0.3 : 1;   /* the real recording leads once loaded */
+    if (sample) {
+      sample.g.gain.setTargetAtTime(p.sampleGain, t, 0.25);
+      sample.f.frequency.setTargetAtTime(p.sampleFreq, t, 0.3);
+      sample.src.playbackRate.setTargetAtTime(p.sampleRate, t, 0.4);
+    }
+    p.noiseGain *= syn; p.lowGain *= syn;
     nodes.ng.gain.setTargetAtTime(p.noiseGain, t, 0.15);
     nodes.nf.frequency.setTargetAtTime(p.noiseFreq, t, 0.2);
     nodes.lg.gain.setTargetAtTime(p.lowGain, t, 0.2);
@@ -75,6 +103,7 @@
     var t = nodes.ctx.currentTime;
     nodes.ng.gain.setTargetAtTime(0, t, 0.05);
     nodes.lg.gain.setTargetAtTime(0, t, 0.05);
+    if (sample) sample.g.gain.setTargetAtTime(0, t, 0.05);
   }
 
   return { params: params, update: update, silence: silence };

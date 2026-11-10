@@ -25,6 +25,11 @@ Source: design report and Director answers of 2026-11-04. "Open" means not decid
 | Introductory level | Added to M3: vertical ascent from Earth (semi-guided: pilot controls throttle and final pitch), atmosphere exit with inertia, sound and colour changes, calm flight, simple lunar slingshot (corridor bonus, presented as computed by Earth scientists; real physics in later levels), a harder asteroid belt, exit from the Solar System and first jump. Cockpit view only. |
 | Asteroid belt difficulty | Harder than M1: the laser must be needed. Still solvable. |
 | Introductory level pacing | Director feedback after the first browser look (2026-11-06): the ascent through the atmosphere must last about 2 minutes at normal throttle (the player may play with speed and acceleration; slower is allowed and costs fuel), with a smooth sky transition blue, then orange/red, then violet, then black, with stars fading in. The lunar phase must last about 1 minute. The Moon is gigantic and massive: the ship is tiny beside it and must go round it to gain momentum. |
+| Fuel is a limit (2026-11-10) | The tank starts full and is never refilled (the lunar sling gives speed only). Burn per distance is `fuel_per_unit * (0.40 + 0.80 t^2)` for throttle t, plus a cost per unit of speed gained or lost. Slow flight is efficient but takes longer (the Earth clock runs); full throttle all the way arrives with almost nothing left (measured: balanced ship 60% throttle arrives with 43% of the tank, 100% with under 1%). `fuel_per_unit` is 0.80 of the tank over the 25000 route at nominal burn. |
+| Real sound (2026-11-10) | Voices and the engine use real NASA recordings (see docs/CREDITS.md). Effects with no NASA equivalent (laser, hits, rings, warnings) stay synthesised. |
+| Origin story (2026-11-10) | The initial reason for the trip is the loss of Earth's magnetic field. |
+| After level 0 (2026-11-10) | No landing for now. The route continues towards Saturn and on to the next star system in the galaxy, with pirates on the way. Not developed yet: level 0 is completed first. |
+| Priorities (2026-11-10) | Security review (Origin, CSRF, secrets) postponed in favour of reviewing the game identity. NASA credits and a rights check are mandatory (done, see docs/CREDITS.md). |
 
 ## Fixed rules inherited from the migration
 

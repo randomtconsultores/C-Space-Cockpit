@@ -13,5 +13,6 @@ for (let t = 0; t <= 1; t += 0.1) for (let d = 0; d <= 1; d += 0.1) {
   const q = E.params(t, d, 100, 50);
   for (const k in q) assert(isFinite(q[k]) && q[k] >= 0, k);
 }
+assert(space.sampleGain > 0.3 && ground.sampleRate >= 0.85, "real cabin layer follows throttle");
 assert.doesNotThrow(() => E.update(null, 1, 1, 0, 1), "no synth is silent");
 console.log("engine tests ok");

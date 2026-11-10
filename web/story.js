@@ -30,7 +30,7 @@
     MOON: "Aproxima\u00e7\u00e3o \u00e0 Lua. Siga o corredor calculado pelos cientistas terrestres para ganhar velocidade.",
     MOON_GUIDE: "Contorne a Lua seguindo os an\u00e9is, perto da superf\u00edcie mas sem lhe tocar, para ganhar velocidade.",
     MOON_WARN: "Perigo: demasiado perto da superf\u00edcie.",
-    SLING_GOOD: "Fisga gravitacional perfeita. Velocidade e combust\u00edvel ganhos.",
+    SLING_GOOD: "Fisga gravitacional perfeita. Velocidade ganha.",
     SLING_OK: "Fisga gravitacional aceit\u00e1vel.",
     SLING_MISS: "Fisga falhada. Sem ganho desta vez."
   };

@@ -42,7 +42,10 @@ struct Flight;
 #define LV_MOON_RING_SPAN 1100.0f  /* the circular part of the guide path covers z offsets within +-this; it blends to x=0 at the zone edges */
 #define LV_MOON_RING_ALT  250.0f   /* altitude over the surface of the guide ring path */
 #define LV_SLING_SPEED_RATIO 0.25f /* speed bonus up to +25% of max_speed */
-#define LV_SLING_FUEL     50.0f    /* fuel credit */
+#define LV_FUEL_BASE      0.40f    /* burn per distance = fuel_per_unit * (BASE + THROTTLE * t^2): slow is efficient */
+#define LV_FUEL_THROTTLE  0.80f
+#define LV_FUEL_ACCEL     0.50f    /* extra fuel per unit of speed gained or lost (fuel_per_unit * this) */
+#define LV_FUEL_CRUISE    0.70f    /* nominal route cost factor (about the burn at 60% throttle) */
 #define LV_MIN_FUEL_MARGIN_RATIO 0.10f  /* minimum fuel ratio at arrival */
 
 #define LV_SPEED_BOOST    3.0f     /* speed cap multiplier after the lunar zone (ascent and Moon keep the intro pacing) */
@@ -67,6 +70,7 @@ float lv_density(float z);
 float lv_drag_factor(float d);
 float lv_turn_factor(float d);
 float lv_fuel_factor(float d);
+float lv_fuel_throttle(float t);   /* burn multiplier for a throttle 0..1 */
 float lv_tilt_profile(float z);   /* target tilt angle (radians) at z during ascent */
 float lv_speed_boost(float z);      /* 1 up to the end of the lunar zone, ramps to LV_SPEED_BOOST */
 float lv_max_speed_factor(float z); /* max allowed speed fraction in atmosphere (0..1) */

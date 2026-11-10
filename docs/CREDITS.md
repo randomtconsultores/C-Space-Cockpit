@@ -24,3 +24,15 @@ voices appear in some clips (astronauts, flight controllers, President Kennedy).
 | arrived.mp3 | Apollo 11: "The Eagle has landed" |
 | farewell.mp3 | Apollo 11 plaque: "We came in peace for all mankind" |
 | rumble.mp3 | Saturn launch sound (NASA launch sounds) |
+| cabin.mp3 | Space Shuttle launch, in-cabin recording (22 s seamless loop made from NASA launch sounds); used as the engine sound |
+
+## Rights check (2026-11-10)
+
+Based on NASA's [Guidelines for using NASA Images and Media](https://www.nasa.gov/nasa-brand-center/images-and-media/):
+
+- NASA audio is generally not subject to US copyright. It may be used for educational or informational purposes, and NASA should be acknowledged as the source. The menu shows that credit.
+- For commercial use, the material must not state or imply NASA endorsement. The menu says the game is not endorsed by NASA.
+- Commercial use of media with identifiable people can infringe privacy or publicity rights. The clips with recognisable voices are: reason.mp3 (President Kennedy), liftoff.mp3, arrived.mp3 and farewell.mp3 (Apollo 11), godspeed.mp3 (Mercury 6) and problem.mp3 (Apollo 13). The shuttle controller clips (radio, ignition, climb, heat, atmo_exit) and the launch sounds (rumble, cabin) carry no named person.
+- The NASA insignia and logotype are not public domain. The game does not use them.
+
+Recommendation: fine for the current private and educational phase. Before a public commercial release, either replace the identifiable-person clips with anonymous controller recordings, or get permission or legal advice. This is a good-faith summary, not legal advice.

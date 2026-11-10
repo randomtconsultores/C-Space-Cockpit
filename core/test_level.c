@@ -324,9 +324,9 @@ static void test_ring_flyable(void)
 static void test_sling(void)
 {
     int g, o, m; float ds, df;
-    /* Low pass: quality 1, one good event, speed and fuel go up. */
+    /* Low pass: quality 1, one good event, speed goes up, fuel never does. */
     sling_event_at(120.0f, &g, &o, &m, &ds, &df);
-    CHECK(g == 1); CHECK(o == 0); CHECK(m == 0); CHECK(ds > 0.0f); CHECK(df > 0.0f);
+    CHECK(g == 1); CHECK(o == 0); CHECK(m == 0); CHECK(ds > 0.0f); CHECK(df <= 0.0f);   /* the sling never refuels */
     /* Medium altitude: acceptable. */
     sling_event_at(0.5f * (LV_SLING_ALT_BEST + LV_SLING_ALT_MAX), &g, &o, &m, &ds, &df);
     CHECK(g == 0); CHECK(o == 1); CHECK(m == 0);
@@ -569,7 +569,7 @@ static void test_moon_sling_gain(void)
     /* A low pass gives more speed and fuel than a far pass, spread in time. */
     Flight lo, hi;
     place_before_zone(&lo, 7); place_before_zone(&hi, 7);
-    float fuel_lo0 = lo.fuel, fuel_hi0 = hi.fuel;
+    (void)0;
     float vmax_lo = 0.0f, vmax_hi = 0.0f; int ev_lo = 0, ev_hi = 0;
     for (int i = 0; i < 60 * 300 && (lo.pz < LV_MOON_Z + LV_MOON_ZONE || hi.pz < LV_MOON_Z + LV_MOON_ZONE); i++) {
         float rx, ry;
@@ -582,7 +582,6 @@ static void test_moon_sling_gain(void)
         if (hi.pz < LV_MOON_Z + LV_MOON_ZONE) { flight_tick(&hi); ev_hi += count_ev(&hi, FL_EV_SLING_MISS) + count_ev(&hi, FL_EV_SLING_OK) * 10; if (hi.speed > vmax_hi) vmax_hi = hi.speed; }
     }
     CHECK(vmax_lo > vmax_hi + 5.0f);
-    CHECK(lo.fuel - fuel_lo0 > hi.fuel - fuel_hi0);
     CHECK(ev_lo >= 1);                /* a sling summary was reported */
     CHECK(lo.hull == lo.spec->hull_max);   /* following the ring path never touches the Moon */
 }
