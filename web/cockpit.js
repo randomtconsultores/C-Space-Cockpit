@@ -20,13 +20,24 @@
   var debugOn = false;
   var fpsSamples = []; var fpsSum = 0;
   var lastSteps = 0, lastDebug = 0;
-  var simSteps = 0, simWindowStart = 0, simTicksPerSec = 0;
-  var STAT = CockpitHud.STAT;
+var simSteps = 0, simWindowStart = 0, simTicksPerSec = 0;
+var STAT = CockpitHud.STAT;
+/* Screen flow: menu | map | intro | flight | transition */
+var screen = "menu";
+var mapPanel = document.getElementById("map");
+var introPanel = document.getElementById("intro");
+var transitionPanel = document.getElementById("transition");
+var MapWedgeInst = null;
   /* Keymap panel (only in the initial menu, never during flight). */
   var keymapPanelOpen = false;
   var musicDirector = null, musicPairing = null;  // music:
 
   function setStatus(t) { statusNode.textContent = t; }
+
+  function setScreen(s) {
+    screen = s;
+    if (typeof window.__cockpit !== "undefined") window.__cockpit.screen = s;
+  }
 
   function sound(id) {
     if (!soundOn || !id || typeof Howl !== "function") return;
@@ -153,6 +164,123 @@
     if (typeof CockpitGamepad !== "undefined") CockpitGamepad.update(pressInput, togglePause);
     requestAnimationFrame(frame);
   }
+
+  /* ---------- Mapa (wedge) / intro ---------- */
+  function hideAllPanels() {
+    menu.hidden = true;
+    if (mapPanel) mapPanel.hidden = true;
+    if (introPanel) introPanel.hidden = true;
+    if (transitionPanel) transitionPanel.hidden = true;
+    endNode.hidden = true;
+    pauseNode.hidden = true;
+  }
+  function showMenu() {
+    hideAllPanels();
+    screen = "menu";
+    menu.hidden = false;
+    applyI18n();
+  }
+  function showMap() {
+    hideAllPanels();
+    screen = "map";
+    if (mapPanel) mapPanel.hidden = false;
+    applyI18n();
+    var MapWedgeCtor = typeof window.CockpitMapWedge !== "undefined" ? window.CockpitMapWedge : (typeof window.MapWedge !== "undefined" ? window.MapWedge : null);
+    if (!MapWedgeInst && MapWedgeCtor) {
+      MapWedgeInst = MapWedgeCtor;
+      MapWedgeInst.init("map-canvas", {
+        i18n: window.CockpitI18n ? window.CockpitI18n.t.bind(window.CockpitI18n) : function (k) { return k; },
+        nodes: window.CockpitNodes ? window.CockpitNodes.getAll() : null,
+        art: window.CockpitArt,
+        onLaunch: function (nodeId) { onMapLaunch(nodeId); },
+        onBack: function () { showMenu(); }
+      });
+      window.MapWedgeInst = MapWedgeInst;
+      if (typeof window.__cockpit !== "undefined") window.__cockpit.MapWedgeInst = MapWedgeInst;
+    } else if (MapWedgeInst) {
+      MapWedgeInst.render();
+    }
+    updateMapSidebar();
+  }
+  function showIntro(nodeId) {
+    hideAllPanels();
+    screen = "intro";
+    introPanel.hidden = false;
+    var t = window.CockpitI18n ? window.CockpitI18n.t : function (k) { return k; };
+    var title = document.getElementById("intro-title");
+    var text = document.getElementById("intro-text");
+    if (title) title.textContent = t("map.node." + nodeId) || nodeId;
+    if (text) text.textContent = t("map.node.desc." + nodeId) || "";
+    applyI18n();
+  }
+  function closeIntro() {
+    hideAllPanels();
+    screen = "map";
+    if (mapPanel) mapPanel.hidden = false;
+    applyI18n();
+  }
+  function startFlightFromIntro() {
+    hideAllPanels();
+    screen = "flight";
+    start();
+  }
+  function onMapSelect(nodeId) {
+    var n = MapWedgeInst ? MapWedgeInst.nodeOf(nodeId) : null;
+    if (!n) return;
+    updateMapSidebar();
+    if (n.state === "available" && n.level === "L0") {
+      showIntro(nodeId);
+    }
+  }
+  function onMapLaunch(nodeId) {
+    onMapSelect(nodeId);
+  }
+  function updateMapSidebar() {
+    if (!MapWedgeInst) return;
+    var sel = MapWedgeInst.selected();
+    var n = sel ? MapWedgeInst.nodeOf(sel) : null;
+    var nameEl = document.getElementById("map-node-name");
+    var descEl = document.getElementById("map-node-desc");
+    var thumbEl = document.getElementById("map-node-thumb");
+    var statusEl = document.getElementById("map-node-status");
+    var launchBtn = document.getElementById("map-launch");
+    var backBtn = document.getElementById("map-back-btn");
+    var t = window.CockpitI18n ? window.CockpitI18n.t : function (k) { return k; };
+    if (n) {
+      if (nameEl) nameEl.textContent = t(n.nameKey) || n.id;
+      if (descEl) descEl.textContent = t(n.descKey) || "";
+      if (thumbEl && window.CockpitArt) {
+        window.CockpitArt.drawThumbnail(thumbEl.getContext("2d"), n.thumb, 120, 72);
+      }
+      if (statusEl) {
+        if (n.state === "available") statusEl.textContent = t("map.available");
+        else if (n.state === "locked") statusEl.textContent = t("map.locked");
+        else if (n.state === "completed") statusEl.textContent = t("map.completed");
+      }
+      if (launchBtn) {
+        launchBtn.hidden = !(n.state === "available" && n.level === "L0");
+      }
+    } else {
+      if (nameEl) nameEl.textContent = "";
+      if (descEl) descEl.textContent = "";
+      if (thumbEl) thumbEl.getContext("2d").clearRect(0, 0, 120, 72);
+      if (statusEl) statusEl.textContent = "";
+      if (launchBtn) launchBtn.hidden = true;
+    }
+    if (backBtn) backBtn.onclick = showMenu;
+    var layerBtns = document.getElementById("map-layer-btns");
+    if (layerBtns && MapWedgeInst && MapWedgeInst.LAYERS) {
+      layerBtns.innerHTML = "";
+      MapWedgeInst.LAYERS.forEach(function (L, i) {
+        var btn = document.createElement("button");
+        btn.type = "button";
+        btn.textContent = t(L.labelKey) || L.id;
+        btn.className = "layer-btn" + (MapWedgeInst.currentLayer === i ? " active" : "");
+        btn.onclick = function () { MapWedgeInst.setLayer(i); updateMapSidebar(); };
+        layerBtns.appendChild(btn);
+      });
+    }
+  }
   function start() {
     if (musicDirector) musicDirector.start();  // music: needs a user gesture (menu click or Enter)
     if (core._cs_init(shipType, seed) !== 0) { setStatus("Tipo de nave inválido."); return; }
@@ -185,6 +313,27 @@
   }
 
   window.addEventListener("keydown", function (e) {
+    if (screen === "map") {
+      if (!MapWedgeInst) return;
+      var r = MapWedgeInst.keydown(e);
+      if (r === "back") { showMenu(); e.preventDefault(); return; }
+      if (r === "select") {
+        var sel = MapWedgeInst.selected();
+        if (sel) onMapSelect(sel);
+        e.preventDefault(); return;
+      }
+      if (r === true) { updateMapSidebar(); e.preventDefault(); return; }
+    }
+    if (screen === "intro") {
+      if (e.code === "Enter" || e.code === "Space" || e.code === "NumpadEnter") {
+        startFlightFromIntro(); e.preventDefault(); return;
+      }
+      if (e.code === "Escape") { closeIntro(); e.preventDefault(); return; }
+    }
+    if (screen === "menu") {
+      if (e.code === "Enter") { showMap(); e.preventDefault(); return; }
+      if (e.code === "Escape") { e.preventDefault(); return; }
+    }
     if (!core) return;
     if (keymapPanelOpen && CockpitKeymap.captureState().active) {
       var cap = CockpitKeymap.handleCaptureKey(e.code);
@@ -194,7 +343,10 @@
       return;
     }
     if (keymapPanelOpen) { if (e.code === "Escape") closeKeymapPanel(); e.preventDefault(); return; }
-    if (e.code === "Enter" && (menu.hidden === false || ended)) { start(); e.preventDefault(); return; }
+    if (e.code === "Enter") {
+      if (ended) { start(); e.preventDefault(); return; }
+      if (menu.hidden === false) { showMap(); e.preventDefault(); return; }
+    }
     if (e.code === "Escape" && menu.hidden === true && !ended) { togglePause(); e.preventDefault(); return; }
     if (e.code === "KeyI" && menu.hidden === true && !ended) {
       releaseAll(); CockpitSettings.setInverted(!CockpitSettings.isInverted()); updatePitchText(); e.preventDefault(); return;
@@ -290,6 +442,12 @@
     ["pointerup", "pointercancel", "pointerleave"].forEach(function (n) { b.addEventListener(n, function () { pressInput(a, false); }); });
   });
   document.getElementById("restart").addEventListener("click", start);
+  var mapBack = document.getElementById("map-back");
+  if (mapBack) mapBack.addEventListener("click", showMenu);
+  var introStart = document.getElementById("intro-start");
+  if (introStart) introStart.addEventListener("click", function () { startFlightFromIntro(); });
+  var introBack = document.getElementById("intro-back");
+  if (introBack) introBack.addEventListener("click", function () { closeIntro(); });
   document.getElementById("sound").addEventListener("click", function (e) {
     soundOn = !soundOn; e.target.textContent = soundOn ? "SOM LIGADO" : "SOM DESLIGADO"; e.target.setAttribute("aria-pressed", String(!soundOn));
     /* music: respect sound button */
@@ -304,6 +462,14 @@
   if (btnKeymapReset) btnKeymapReset.addEventListener("click", function () {
     CockpitKeymap.resetAll(); renderKeymapPanel(); showMsg("");
   });
+  var btnLangEn = document.getElementById("btn-lang-en");
+  var btnLangPt = document.getElementById("btn-lang-pt");
+  if (btnLangEn) btnLangEn.addEventListener("click", function () {
+    if (window.CockpitI18n) { window.CockpitI18n.setLang("en"); applyI18n(); }
+  });
+  if (btnLangPt) btnLangPt.addEventListener("click", function () {
+    if (window.CockpitI18n) { window.CockpitI18n.setLang("pt-PT"); applyI18n(); }
+  });
   try { renderer = new CockpitRenderer(glCanvas, 70); } catch (err) { setStatus("WebGL indisponível: " + err.message); return; }
   if (typeof createCockpit !== "function") { setStatus("cockpit.js não encontrado: execute make -f web/Makefile all."); return; }
   try { CockpitSettings.useStorage(window.localStorage); } catch (err) { /* storage blocked: defaults only */ }
@@ -314,6 +480,6 @@
   musicDirector = CockpitMusicDirector.create(CockpitSynth, CockpitMusic, musicPairing);  // music:
   updatePitchText();
   createCockpit().then(function (m) {
-    core = m; window.__cockpit = m; resize(); setStatus(""); menu.hidden = false;
+    core = m; window.__cockpit = m; window.__cockpit.screen = screen; resize(); setStatus(""); menu.hidden = false;
   }).catch(function (e) { setStatus("Falha ao carregar WebAssembly: " + e); });
 })();

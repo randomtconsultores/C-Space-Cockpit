@@ -10,9 +10,11 @@ SOUND_FILES := $(addprefix $(OUT)/sounds/,$(addsuffix .wav,$(SOUND_IDS)))
 SOUND_MANIFEST := $(OUT)/sounds/manifest.json
 MENU_MUSIC := $(OUT)/sounds/menu.wav
 EXPORTS := _cs_init _cs_input _cs_tick _cs_event_take _cs_stat _cs_scene_update _cs_seg_ptr _cs_seg_count _cs_pt_ptr _cs_pt_count _cs_con_ptr _cs_con_count _cs_const
-JS := keymap.js input.js events.js hud.js settings.js gamepad.js music_data.js music.js synth.js sfx.js engine.js comms.js music_director.js render_gl.js story.js cockpit.js index.html
+JS := keymap.js input.js events.js hud.js settings.js gamepad.js music_data.js music.js synth.js sfx.js engine.js comms.js music_director.js render_gl.js story.js cockpit.js index.html i18n.js art.js map-wedge.js
+CSS := map-wedge.css
+DATA := data/nodes-wedge.json
 .PHONY: all check-toolchain test test-c test-js test-sound-assets serve test-browser clean
-all: check-toolchain $(OUT)/cockpit_wasm.js $(addprefix $(OUT)/,$(JS)) $(OUT)/sounds/nasa/.stamp $(SOUND_MANIFEST) $(SOUND_FILES) $(MENU_MUSIC)
+all: check-toolchain $(OUT)/cockpit_wasm.js $(addprefix $(OUT)/,$(JS)) $(addprefix $(OUT)/,$(CSS)) $(addprefix $(OUT)/,$(DATA)) $(OUT)/sounds/nasa/.stamp $(SOUND_MANIFEST) $(SOUND_FILES) $(MENU_MUSIC)
 check-toolchain:
 	@command -v $(EMCC) >/dev/null 2>&1 || { echo "emcc not found; activate Emscripten first."; exit 1; }
 $(OUT)/cockpit_wasm.js $(OUT)/cockpit_wasm.wasm &: web/cockpit.c $(CORE) core/flight.h core/scene.h core/rng.h core/ship.h web/Makefile
@@ -22,6 +24,14 @@ $(OUT)/cockpit_wasm.js $(OUT)/cockpit_wasm.wasm &: web/cockpit.c $(CORE) core/fl
 $(addprefix $(OUT)/,$(JS)): $(OUT)/%: web/%
 	mkdir -p $(OUT)
 	cp $< $@
+$(OUT)/map-wedge.css: web/map-wedge.css | $(OUT)
+	mkdir -p $(OUT)
+	cp $< $@
+$(OUT)/data/nodes-wedge.json: web/data/nodes-wedge.json | $(OUT)
+	mkdir -p $(OUT)/data
+	cp $< $@
+| $(OUT):
+	mkdir -p $(OUT)
 $(OUT)/sounds/nasa/.stamp: $(wildcard web/nasa/*.mp3)
 	@mkdir -p $(OUT)/sounds/nasa && cp web/nasa/*.mp3 $(OUT)/sounds/nasa/ && touch $@
 $(SOUND_MANIFEST) $(SOUND_FILES) $(MENU_MUSIC) &: web/make_sounds.py web/audio.h
@@ -49,6 +59,8 @@ test-js:
 	$(NODE) web/test_engine.js
 	$(NODE) web/test_music.js
 	$(NODE) web/test_sfx.js
+	$(NODE) web/test_map_wedge.js
+	$(NODE) web/test_i18n.js
 test-sound-assets:
 	$(PYTHON) -B web/test_sound_assets.py
 serve: all

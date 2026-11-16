@@ -235,16 +235,38 @@ async function main() {
       await finish(browser, server); return;
     }
 
-    /* ---- step b: click ship 1 ---- */
+    /* ---- step b: abre mapa (Enter no menu) ---- */
     try {
-      await page.click('[data-ship="1"]', { timeout: 10000 });
+      await page.keyboard.press("Enter");
+      await page.waitForFunction(() => !document.getElementById("map").hidden, { timeout: 5000 });
       ok = true; reason = "";
-    } catch (e) { ok = false; reason = "clique em [data-ship='1'] falhou: " + e.message; }
-    log(ok ? "OK" : "FALHOU", "b. seleciona nave 1", reason);
+    } catch (e) { ok = false; reason = "mapa #map nao abriu: " + e.message; }
+    log(ok ? "OK" : "FALHOU", "b. mapa aberto", reason);
+    if (!ok) { await finish(browser, server); return; }
+    await page.screenshot({ path: path.join(OUT_DIR, "map.png"), fullPage: true });
+
+    /* ---- step c: navega para Sol (Tab) e seleciona (Enter) -> intro ---- */
+    try {
+      await page.keyboard.press("Tab"); // primeiro no disponivel (Sol)
+      await page.waitForTimeout(300);
+      await page.keyboard.press("Enter");
+      await page.waitForFunction(() => window.__cockpit && window.__cockpit.screen === "intro", { timeout: 5000 });
+      ok = true; reason = "";
+    } catch (e) { ok = false; reason = "sol nao levou ao intro: " + e.message; }
+    log(ok ? "OK" : "FALHOU", "c. Sol selecionado -> intro", reason);
+    if (!ok) { await finish(browser, server); return; }
+    await page.screenshot({ path: path.join(OUT_DIR, "intro.png"), fullPage: true });
+
+    /* ---- step d: Enter no intro inicia o voo ---- */
+    try {
+      await page.keyboard.press("Enter");
+      await page.waitForFunction(() => window.__cockpit && window.__cockpit.screen === "flight", { timeout: 5000 });
+      ok = true; reason = "";
+    } catch (e) { ok = false; reason = "intro nao iniciou o voo: " + e.message; }
+    log(ok ? "OK" : "FALHOU", "d. intro iniciou o voo (screen=flight)", reason);
     if (!ok) { await finish(browser, server); return; }
 
-    /* ---- step c: the level starts on the pad in manual mode; hold the
-     * throttle (X) for 3 s and read stats ---- */
+    /* ---- step e: subida - segura acelerador (X) por 3s e le stats ---- */
     await page.keyboard.down("KeyX");
     await page.waitForTimeout(3000);
     const speed = await readStat(page, ID.SPEED);
@@ -253,10 +275,10 @@ async function main() {
     await page.keyboard.up("KeyX");
     ok = speed > 0 && progress > 0 && mode === 1;
     reason = "speed=" + speed + " progress=" + progress + " mode=" + mode;
-    log(ok ? "OK" : "FALHOU", "c. subida: apos 3s com acelerador SPEED>0 PROGRESS>0 MODE==1", reason);
+    log(ok ? "OK" : "FALHOU", "e. subida: apos 3s com acelerador SPEED>0 PROGRESS>0 MODE==1", reason);
     if (!ok) { await finish(browser, server); return; }
 
-    /* ---- step c2: finish the ascent (fast ticks), then engage the autopilot ---- */
+    /* ---- step f: termina a subida (ticks rapidos) e engata o piloto automatico ---- */
     const THROTTLE_UP = 4;
     const AUTOPILOT = 7;
     await page.evaluate(([t]) => window.__cockpit._cs_input(t, 1), [THROTTLE_UP]);
@@ -265,93 +287,93 @@ async function main() {
     const modeAuto = await readStat(page, ID.MODE);
     ok = modeAuto === 0;
     reason = "ticks de subida=" + ascent.ticks + " mode=" + modeAuto;
-    log(ok ? "OK" : "FALHOU", "c2. fora da atmosfera: piloto automático ativo (MODE==0)", reason);
+    log(ok ? "OK" : "FALHOU", "f. fora da atmosfera: piloto automatico ativo (MODE==0)", reason);
     if (!ok) { await finish(browser, server); return; }
 
-    /* screenshot 2: voo em piloto automático (mode == 0) */
+    /* screenshot 2: voo em piloto automatico (mode == 0) */
     await page.screenshot({ path: path.join(OUT_DIR, "autopilot.png"), fullPage: true });
 
-    /* ---- step d: tick until alert == 1 ---- */
-    let dRes;
+    /* ---- step g: tick ate alert == 1 ---- */
+    let gRes;
     try {
-      dRes = await runTicksUntil(page, 20000, ID.ALERT, 1);
+      gRes = await runTicksUntil(page, 20000, ID.ALERT, 1);
     } catch (e) {
-      dRes = { ticks: 0, error: e.message };
+      gRes = { ticks: 0, error: e.message };
     }
-    const alertAfterD = await readStat(page, ID.ALERT);
-    ok = alertAfterD === 1;
-    reason = "alert=" + alertAfterD + " ticks=" + (dRes ? dRes.ticks : 0) + (dRes && dRes.error ? " err=" + dRes.error : "");
-    log(ok ? "OK" : "FALHOU", "d. aviso perigo (ALERT==1)", reason);
+    const alertAfterG = await readStat(page, ID.ALERT);
+    ok = alertAfterG === 1;
+    reason = "alert=" + alertAfterG + " ticks=" + (gRes ? gRes.ticks : 0) + (gRes && gRes.error ? " err=" + gRes.error : "");
+    log(ok ? "OK" : "FALHOU", "g. aviso perigo (ALERT==1)", reason);
     if (!ok) { await finish(browser, server); return; }
 
-    /* ---- step e: continue until mode == 1 ---- */
-    let eRes;
+    /* ---- step h: continua ate mode == 1 ---- */
+    let hRes;
     try {
-      eRes = await runTicksUntil(page, 20000, ID.MODE, 1);
+      hRes = await runTicksUntil(page, 20000, ID.MODE, 1);
     } catch (e) {
-      eRes = { ticks: 0, error: e.message };
+      hRes = { ticks: 0, error: e.message };
     }
-    const modeAfterE = await readStat(page, ID.MODE);
-    const alertAfterE = await readStat(page, ID.ALERT);
+    const modeAfterH = await readStat(page, ID.MODE);
+    const alertAfterH = await readStat(page, ID.ALERT);
     const hull = await readStat(page, ID.HULL);
     const hullMax = await readStat(page, ID.HULL_MAX);
-    ok = modeAfterE === 1 && alertAfterE === 2 && hull === hullMax;
-    reason = "mode=" + modeAfterE + " alert=" + alertAfterE + " hull=" + hull + "/" + hullMax + " ticks=" + (eRes ? eRes.ticks : 0) + (eRes && eRes.error ? " err=" + eRes.error : "");
-    log(ok ? "OK" : "FALHOU", "e. controlo manual (MODE==1 ALERT==2 HULL==HULL_MAX)", reason);
+    ok = modeAfterH === 1 && alertAfterH === 2 && hull === hullMax;
+    reason = "mode=" + modeAfterH + " alert=" + alertAfterH + " hull=" + hull + "/" + hullMax + " ticks=" + (hRes ? hRes.ticks : 0) + (hRes && hRes.error ? " err=" + hRes.error : "");
+    log(ok ? "OK" : "FALHOU", "h. controlo manual (MODE==1 ALERT==2 HULL==HULL_MAX)", reason);
     if (!ok) { await finish(browser, server); return; }
 
     /* screenshot 3: faixa de asteroides (mode == 1) */
     await page.screenshot({ path: path.join(OUT_DIR, "belt.png"), fullPage: true });
 
-    /* ---- step f: press Space, 300 ms, release; energy must drop ---- */
+    /* ---- step i: pressiona Space, 300 ms, solta; energia deve descer ---- */
     const energyBefore = await readStat(page, ID.ENERGY);
     let energyHeld;
     try {
       await page.keyboard.down("Space");
-      await page.waitForTimeout(150);          /* energy regenerates, so sample while firing */
+      await page.waitForTimeout(150);          /* energia regenera, amostra a disparar */
       energyHeld = await readStat(page, ID.ENERGY);
       await page.keyboard.up("Space");
     } catch (e) {
-      log("FALHOU", "f. tecla Espaco", "page.keyboard falhou: " + e.message);
+      log("FALHOU", "i. tecla Espaco", "page.keyboard falhou: " + e.message);
       await finish(browser, server); return;
     }
     ok = energyHeld < energyBefore;
     reason = "energia antes=" + energyBefore + " durante=" + energyHeld;
-    log(ok ? "OK" : "FALHOU", "f. laser Espaco (ENERGIA desce)", reason);
+    log(ok ? "OK" : "FALHOU", "i. laser Espaco (ENERGIA desce)", reason);
     if (!ok) { await finish(browser, server); return; }
 
-    /* ---- step g: press P inside belt, mode stays 1 ---- */
+    /* ---- step j: pressiona P dentro do cinto, modo fica 1 ---- */
     try {
       await page.keyboard.press("P");
     } catch (e) {
-      log("FALHOU", "g. tecla P", "page.keyboard falhou: " + e.message);
+      log("FALHOU", "j. tecla P", "page.keyboard falhou: " + e.message);
       await finish(browser, server); return;
     }
     await page.waitForTimeout(300);
     const modeAfterP = await readStat(page, ID.MODE);
     ok = modeAfterP === 1;
     reason = "mode depois de P=" + modeAfterP;
-    log(ok ? "OK" : "FALHOU", "g. piloto automático recusado na faixa (MODE continua 1)", reason);
+    log(ok ? "OK" : "FALHOU", "j. piloto automatico recusado no cinto (MODE continua 1)", reason);
     if (!ok) { await finish(browser, server); return; }
 
-    /* ---- step h: screenshots size + hash difference ---- */
+    /* ---- step k: capturas tamanho + hash diferenca ---- */
     const files = ["menu.png", "autopilot.png", "belt.png"];
     const sizes = {};
     const hashes = {};
-    let hOk = true;
+    let kOk = true;
     for (const f of files) {
       const p = path.join(OUT_DIR, f);
       const st = fs.statSync(p);
       sizes[f] = st.size;
-      if (st.size <= 5120) hOk = false;
+      if (st.size <= 5120) kOk = false;
       hashes[f] = crypto.createHash("sha256").update(fs.readFileSync(p)).digest("hex");
     }
     const diff = hashes["autopilot.png"] !== hashes["belt.png"];
-    if (!diff) hOk = false;
-    ok = hOk;
+    if (!diff) kOk = false;
+    ok = kOk;
     reason = "tamanhos menu=" + sizes["menu.png"] + " autopilot=" + sizes["autopilot.png"] + " belt=" + sizes["belt.png"] +
       " bytes; ultimas duas diferentes=" + diff;
-    log(ok ? "OK" : "FALHOU", "h. capturas >5KB e duas ultimas distintas", reason);
+    log(ok ? "OK" : "FALHOU", "k. capturas >5KB e ultimas duas distintas", reason);
 
     /* ---- any real page/console error fails ---- */
     if (pageErrors.length > 0) {

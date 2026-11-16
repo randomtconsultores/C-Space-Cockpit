@@ -4,6 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>C-Space Cockpit</title>
+  <link rel="stylesheet" href="map-wedge.css">
   <style>
     html, body { margin: 0; height: 100%; background: #020605; color: #6dff85; font-family: monospace; }
     body { display: flex; flex-direction: column; align-items: center; }
@@ -41,6 +42,11 @@
         <button type="button" data-ship="2">PESADA</button>
       </div>
       <button id="btn-keymap" type="button">TECLAS</button>
+      <div style="margin:.8rem 0;">
+        <button type="button" id="btn-lang-en" data-i18n="lang.en">EN</button>
+        <button type="button" id="btn-lang-pt" data-i18n="lang.pt">PT</button>
+      </div>
+      <button id="btn-map" type="button" data-i18n="menu.map">Mapa</button>
       <p>Setas ou WASD: pilotar | Z/X: acelerador | Espaço: laser | P: piloto automático | Enter: iniciar</p>
       <p id="credits" style="font-size:.75rem;opacity:.7;max-width:34rem;text-align:center;">Áudio das comunicações e do motor: gravações da NASA (domínio público). Este jogo não é apoiado nem aprovado pela NASA.</p>
     </div>
@@ -61,6 +67,39 @@
     <div id="pause" class="panel" hidden>
       <h2>PAUSA</h2>
       <p>Esc: retoma</p>
+    </div>
+    <div id="intro" class="panel" hidden>
+      <h2 id="intro-title" style="margin:0 0 .5rem 0;color:#6dff85;"></h2>
+      <p id="intro-text" style="font-size:.9rem;color:#ddd;margin:0 0 1rem 0;"></p>
+      <button id="intro-start" type="button">Iniciar voo</button>
+      <button id="intro-back" type="button">Voltar ao mapa</button>
+      <p style="font-size:.75rem;color:#9fd6a8;">Parametro: ?skipintro=1</p>
+    </div>
+    <div id="map" class="panel" hidden>
+      <div class="map-wrap">
+        <div class="map-header">
+          <h2 id="map-title" data-i18n="map.title">Mapa Galactico</h2>
+          <button id="map-back" type="button" data-i18n="map.back">Voltar</button>
+          <span id="map-layer-indicator"></span>
+        </div>
+        <canvas id="map-canvas" width="760" height="420"></canvas>
+        <div id="map-sidebar" class="map-sidebar">
+          <div id="map-node-panel" class="map-node-panel">
+            <h3 id="map-node-name"></h3>
+            <p id="map-node-desc"></p>
+            <canvas id="map-node-thumb" width="120" height="72"></canvas>
+            <div id="map-node-status"></div>
+          </div>
+          <div id="map-legend">
+            <div id="map-layer-btns"></div>
+            <div id="map-cmb-label" data-i18n="map.legend.cmb"></div>
+          </div>
+          <div id="map-actions">
+            <button id="map-launch" type="button" data-i18n="map.launchL0" hidden>Lançar Nível 0</button>
+            <button id="map-back-btn" type="button" data-i18n="map.back">Voltar</button>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
   <p id="status" role="status">A carregar WebAssembly...</p>
@@ -87,6 +126,9 @@
   <script src="music_director.js"></script>
   <script src="render_gl.js"></script>
   <script src="story.js"></script>
+  <script src="i18n.js"></script>
+  <script src="art.js"></script>
+  <script src="map-wedge.js"></script>
   <script src="cockpit_wasm.js"></script>
   <script src="cockpit.js"></script>
 </body>

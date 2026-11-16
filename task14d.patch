@@ -1,0 +1,5417 @@
+diff --git a/tools/smoke/smoke.js b/tools/smoke/smoke.js
+index 16b4203..8f82f73 100644
+--- a/tools/smoke/smoke.js
++++ b/tools/smoke/smoke.js
+@@ -235,16 +235,38 @@ async function main() {
+       await finish(browser, server); return;
+     }
+ 
+-    /* ---- step b: click ship 1 ---- */
++    /* ---- step b: abre mapa (Enter no menu) ---- */
+     try {
+-      await page.click('[data-ship="1"]', { timeout: 10000 });
++      await page.keyboard.press("Enter");
++      await page.waitForFunction(() => !document.getElementById("map").hidden, { timeout: 5000 });
+       ok = true; reason = "";
+-    } catch (e) { ok = false; reason = "clique em [data-ship='1'] falhou: " + e.message; }
+-    log(ok ? "OK" : "FALHOU", "b. seleciona nave 1", reason);
++    } catch (e) { ok = false; reason = "mapa #map nao abriu: " + e.message; }
++    log(ok ? "OK" : "FALHOU", "b. mapa aberto", reason);
+     if (!ok) { await finish(browser, server); return; }
++    await page.screenshot({ path: path.join(OUT_DIR, "map.png"), fullPage: true });
+ 
+-    /* ---- step c: the level starts on the pad in manual mode; hold the
+-     * throttle (X) for 3 s and read stats ---- */
++    /* ---- step c: navega para Sol (Tab) e seleciona (Enter) -> intro ---- */
++    try {
++      await page.keyboard.press("Tab"); // primeiro no disponivel (Sol)
++      await page.waitForTimeout(300);
++      await page.keyboard.press("Enter");
++      await page.waitForFunction(() => window.__cockpit && window.__cockpit.screen === "intro", { timeout: 5000 });
++      ok = true; reason = "";
++    } catch (e) { ok = false; reason = "sol nao levou ao intro: " + e.message; }
++    log(ok ? "OK" : "FALHOU", "c. Sol selecionado -> intro", reason);
++    if (!ok) { await finish(browser, server); return; }
++    await page.screenshot({ path: path.join(OUT_DIR, "intro.png"), fullPage: true });
++
++    /* ---- step d: Enter no intro inicia o voo ---- */
++    try {
++      await page.keyboard.press("Enter");
++      await page.waitForFunction(() => window.__cockpit && window.__cockpit.screen === "flight", { timeout: 5000 });
++      ok = true; reason = "";
++    } catch (e) { ok = false; reason = "intro nao iniciou o voo: " + e.message; }
++    log(ok ? "OK" : "FALHOU", "d. intro iniciou o voo (screen=flight)", reason);
++    if (!ok) { await finish(browser, server); return; }
++
++    /* ---- step e: subida - segura acelerador (X) por 3s e le stats ---- */
+     await page.keyboard.down("KeyX");
+     await page.waitForTimeout(3000);
+     const speed = await readStat(page, ID.SPEED);
+@@ -253,10 +275,10 @@ async function main() {
+     await page.keyboard.up("KeyX");
+     ok = speed > 0 && progress > 0 && mode === 1;
+     reason = "speed=" + speed + " progress=" + progress + " mode=" + mode;
+-    log(ok ? "OK" : "FALHOU", "c. subida: apos 3s com acelerador SPEED>0 PROGRESS>0 MODE==1", reason);
++    log(ok ? "OK" : "FALHOU", "e. subida: apos 3s com acelerador SPEED>0 PROGRESS>0 MODE==1", reason);
+     if (!ok) { await finish(browser, server); return; }
+ 
+-    /* ---- step c2: finish the ascent (fast ticks), then engage the autopilot ---- */
++    /* ---- step f: termina a subida (ticks rapidos) e engata o piloto automatico ---- */
+     const THROTTLE_UP = 4;
+     const AUTOPILOT = 7;
+     await page.evaluate(([t]) => window.__cockpit._cs_input(t, 1), [THROTTLE_UP]);
+@@ -265,93 +287,93 @@ async function main() {
+     const modeAuto = await readStat(page, ID.MODE);
+     ok = modeAuto === 0;
+     reason = "ticks de subida=" + ascent.ticks + " mode=" + modeAuto;
+-    log(ok ? "OK" : "FALHOU", "c2. fora da atmosfera: piloto automático ativo (MODE==0)", reason);
++    log(ok ? "OK" : "FALHOU", "f. fora da atmosfera: piloto automatico ativo (MODE==0)", reason);
+     if (!ok) { await finish(browser, server); return; }
+ 
+-    /* screenshot 2: voo em piloto automático (mode == 0) */
++    /* screenshot 2: voo em piloto automatico (mode == 0) */
+     await page.screenshot({ path: path.join(OUT_DIR, "autopilot.png"), fullPage: true });
+ 
+-    /* ---- step d: tick until alert == 1 ---- */
+-    let dRes;
++    /* ---- step g: tick ate alert == 1 ---- */
++    let gRes;
+     try {
+-      dRes = await runTicksUntil(page, 20000, ID.ALERT, 1);
++      gRes = await runTicksUntil(page, 20000, ID.ALERT, 1);
+     } catch (e) {
+-      dRes = { ticks: 0, error: e.message };
++      gRes = { ticks: 0, error: e.message };
+     }
+-    const alertAfterD = await readStat(page, ID.ALERT);
+-    ok = alertAfterD === 1;
+-    reason = "alert=" + alertAfterD + " ticks=" + (dRes ? dRes.ticks : 0) + (dRes && dRes.error ? " err=" + dRes.error : "");
+-    log(ok ? "OK" : "FALHOU", "d. aviso perigo (ALERT==1)", reason);
++    const alertAfterG = await readStat(page, ID.ALERT);
++    ok = alertAfterG === 1;
++    reason = "alert=" + alertAfterG + " ticks=" + (gRes ? gRes.ticks : 0) + (gRes && gRes.error ? " err=" + gRes.error : "");
++    log(ok ? "OK" : "FALHOU", "g. aviso perigo (ALERT==1)", reason);
+     if (!ok) { await finish(browser, server); return; }
+ 
+-    /* ---- step e: continue until mode == 1 ---- */
+-    let eRes;
++    /* ---- step h: continua ate mode == 1 ---- */
++    let hRes;
+     try {
+-      eRes = await runTicksUntil(page, 20000, ID.MODE, 1);
++      hRes = await runTicksUntil(page, 20000, ID.MODE, 1);
+     } catch (e) {
+-      eRes = { ticks: 0, error: e.message };
++      hRes = { ticks: 0, error: e.message };
+     }
+-    const modeAfterE = await readStat(page, ID.MODE);
+-    const alertAfterE = await readStat(page, ID.ALERT);
++    const modeAfterH = await readStat(page, ID.MODE);
++    const alertAfterH = await readStat(page, ID.ALERT);
+     const hull = await readStat(page, ID.HULL);
+     const hullMax = await readStat(page, ID.HULL_MAX);
+-    ok = modeAfterE === 1 && alertAfterE === 2 && hull === hullMax;
+-    reason = "mode=" + modeAfterE + " alert=" + alertAfterE + " hull=" + hull + "/" + hullMax + " ticks=" + (eRes ? eRes.ticks : 0) + (eRes && eRes.error ? " err=" + eRes.error : "");
+-    log(ok ? "OK" : "FALHOU", "e. controlo manual (MODE==1 ALERT==2 HULL==HULL_MAX)", reason);
++    ok = modeAfterH === 1 && alertAfterH === 2 && hull === hullMax;
++    reason = "mode=" + modeAfterH + " alert=" + alertAfterH + " hull=" + hull + "/" + hullMax + " ticks=" + (hRes ? hRes.ticks : 0) + (hRes && hRes.error ? " err=" + hRes.error : "");
++    log(ok ? "OK" : "FALHOU", "h. controlo manual (MODE==1 ALERT==2 HULL==HULL_MAX)", reason);
+     if (!ok) { await finish(browser, server); return; }
+ 
+     /* screenshot 3: faixa de asteroides (mode == 1) */
+     await page.screenshot({ path: path.join(OUT_DIR, "belt.png"), fullPage: true });
+ 
+-    /* ---- step f: press Space, 300 ms, release; energy must drop ---- */
++    /* ---- step i: pressiona Space, 300 ms, solta; energia deve descer ---- */
+     const energyBefore = await readStat(page, ID.ENERGY);
+     let energyHeld;
+     try {
+       await page.keyboard.down("Space");
+-      await page.waitForTimeout(150);          /* energy regenerates, so sample while firing */
++      await page.waitForTimeout(150);          /* energia regenera, amostra a disparar */
+       energyHeld = await readStat(page, ID.ENERGY);
+       await page.keyboard.up("Space");
+     } catch (e) {
+-      log("FALHOU", "f. tecla Espaco", "page.keyboard falhou: " + e.message);
++      log("FALHOU", "i. tecla Espaco", "page.keyboard falhou: " + e.message);
+       await finish(browser, server); return;
+     }
+     ok = energyHeld < energyBefore;
+     reason = "energia antes=" + energyBefore + " durante=" + energyHeld;
+-    log(ok ? "OK" : "FALHOU", "f. laser Espaco (ENERGIA desce)", reason);
++    log(ok ? "OK" : "FALHOU", "i. laser Espaco (ENERGIA desce)", reason);
+     if (!ok) { await finish(browser, server); return; }
+ 
+-    /* ---- step g: press P inside belt, mode stays 1 ---- */
++    /* ---- step j: pressiona P dentro do cinto, modo fica 1 ---- */
+     try {
+       await page.keyboard.press("P");
+     } catch (e) {
+-      log("FALHOU", "g. tecla P", "page.keyboard falhou: " + e.message);
++      log("FALHOU", "j. tecla P", "page.keyboard falhou: " + e.message);
+       await finish(browser, server); return;
+     }
+     await page.waitForTimeout(300);
+     const modeAfterP = await readStat(page, ID.MODE);
+     ok = modeAfterP === 1;
+     reason = "mode depois de P=" + modeAfterP;
+-    log(ok ? "OK" : "FALHOU", "g. piloto automático recusado na faixa (MODE continua 1)", reason);
++    log(ok ? "OK" : "FALHOU", "j. piloto automatico recusado no cinto (MODE continua 1)", reason);
+     if (!ok) { await finish(browser, server); return; }
+ 
+-    /* ---- step h: screenshots size + hash difference ---- */
++    /* ---- step k: capturas tamanho + hash diferenca ---- */
+     const files = ["menu.png", "autopilot.png", "belt.png"];
+     const sizes = {};
+     const hashes = {};
+-    let hOk = true;
++    let kOk = true;
+     for (const f of files) {
+       const p = path.join(OUT_DIR, f);
+       const st = fs.statSync(p);
+       sizes[f] = st.size;
+-      if (st.size <= 5120) hOk = false;
++      if (st.size <= 5120) kOk = false;
+       hashes[f] = crypto.createHash("sha256").update(fs.readFileSync(p)).digest("hex");
+     }
+     const diff = hashes["autopilot.png"] !== hashes["belt.png"];
+-    if (!diff) hOk = false;
+-    ok = hOk;
++    if (!diff) kOk = false;
++    ok = kOk;
+     reason = "tamanhos menu=" + sizes["menu.png"] + " autopilot=" + sizes["autopilot.png"] + " belt=" + sizes["belt.png"] +
+       " bytes; ultimas duas diferentes=" + diff;
+-    log(ok ? "OK" : "FALHOU", "h. capturas >5KB e duas ultimas distintas", reason);
++    log(ok ? "OK" : "FALHOU", "k. capturas >5KB e ultimas duas distintas", reason);
+ 
+     /* ---- any real page/console error fails ---- */
+     if (pageErrors.length > 0) {
+diff --git a/web/Makefile b/web/Makefile
+index 3383fbe..daeac65 100644
+--- a/web/Makefile
++++ b/web/Makefile
+@@ -10,9 +10,11 @@ SOUND_FILES := $(addprefix $(OUT)/sounds/,$(addsuffix .wav,$(SOUND_IDS)))
+ SOUND_MANIFEST := $(OUT)/sounds/manifest.json
+ MENU_MUSIC := $(OUT)/sounds/menu.wav
+ EXPORTS := _cs_init _cs_input _cs_tick _cs_event_take _cs_stat _cs_scene_update _cs_seg_ptr _cs_seg_count _cs_pt_ptr _cs_pt_count _cs_con_ptr _cs_con_count _cs_const
+-JS := keymap.js input.js events.js hud.js settings.js gamepad.js music_data.js music.js synth.js sfx.js engine.js comms.js music_director.js render_gl.js story.js cockpit.js index.html
++JS := keymap.js input.js events.js hud.js settings.js gamepad.js music_data.js music.js synth.js sfx.js engine.js comms.js music_director.js render_gl.js story.js cockpit.js index.html i18n.js art.js map-wedge.js
++CSS := map-wedge.css
++DATA := data/nodes-wedge.json
+ .PHONY: all check-toolchain test test-c test-js test-sound-assets serve test-browser clean
+-all: check-toolchain $(OUT)/cockpit_wasm.js $(addprefix $(OUT)/,$(JS)) $(OUT)/sounds/nasa/.stamp $(SOUND_MANIFEST) $(SOUND_FILES) $(MENU_MUSIC)
++all: check-toolchain $(OUT)/cockpit_wasm.js $(addprefix $(OUT)/,$(JS)) $(addprefix $(OUT)/,$(CSS)) $(addprefix $(OUT)/,$(DATA)) $(OUT)/sounds/nasa/.stamp $(SOUND_MANIFEST) $(SOUND_FILES) $(MENU_MUSIC)
+ check-toolchain:
+ 	@command -v $(EMCC) >/dev/null 2>&1 || { echo "emcc not found; activate Emscripten first."; exit 1; }
+ $(OUT)/cockpit_wasm.js $(OUT)/cockpit_wasm.wasm &: web/cockpit.c $(CORE) core/flight.h core/scene.h core/rng.h core/ship.h web/Makefile
+@@ -22,6 +24,14 @@ $(OUT)/cockpit_wasm.js $(OUT)/cockpit_wasm.wasm &: web/cockpit.c $(CORE) core/fl
+ $(addprefix $(OUT)/,$(JS)): $(OUT)/%: web/%
+ 	mkdir -p $(OUT)
+ 	cp $< $@
++$(OUT)/map-wedge.css: web/map-wedge.css | $(OUT)
++	mkdir -p $(OUT)
++	cp $< $@
++$(OUT)/data/nodes-wedge.json: web/data/nodes-wedge.json | $(OUT)
++	mkdir -p $(OUT)/data
++	cp $< $@
++| $(OUT):
++	mkdir -p $(OUT)
+ $(OUT)/sounds/nasa/.stamp: $(wildcard web/nasa/*.mp3)
+ 	@mkdir -p $(OUT)/sounds/nasa && cp web/nasa/*.mp3 $(OUT)/sounds/nasa/ && touch $@
+ $(SOUND_MANIFEST) $(SOUND_FILES) $(MENU_MUSIC) &: web/make_sounds.py web/audio.h
+@@ -49,6 +59,8 @@ test-js:
+ 	$(NODE) web/test_engine.js
+ 	$(NODE) web/test_music.js
+ 	$(NODE) web/test_sfx.js
++	$(NODE) web/test_map_wedge.js
++	$(NODE) web/test_i18n.js
+ test-sound-assets:
+ 	$(PYTHON) -B web/test_sound_assets.py
+ serve: all
+diff --git a/web/art.js b/web/art.js
+new file mode 100644
+index 0000000..6874a72
+--- /dev/null
++++ b/web/art.js
+@@ -0,0 +1,70 @@
++/* Thumbnails de nos (pixel-art procedural, sem dependencias externas).
++   Reaproveitado do contrato da task 14b (art.js). */
++(function (root, factory) {
++  if (typeof module === "object" && module.exports) module.exports = factory();
++  else root.CockpitArt = factory();
++})(typeof self !== "undefined" ? self : this, function () {
++  "use strict";
++
++  function fill(ctx, x, y, w, h, c) { ctx.fillStyle = c; ctx.fillRect(x, y, w, h); }
++  function px(ctx, x, y, c) { ctx.fillStyle = c; ctx.fillRect(x, y, 1, 1); }
++
++  // Desenha uma miniatura de 120x72 (logico) para um id de thumb.
++  // thumbId exemplos: "spiral-1", "elliptical-2", "quasar-1", "sol", ...
++  function drawThumbnail(ctx, thumbId, w, h) {
++    if (!ctx) return;
++    w = w || 120; h = h || 72;
++    ctx.save();
++    ctx.clearRect(0, 0, w, h);
++    // fundo espaco
++    fill(ctx, 0, 0, w, h, "#020605");
++    // poeira de estrelas
++    var s = 12345;
++    for (var i = 0; i < 40; i++) {
++      s = (s * 16807 + 0) % 2147483647;
++      var px_ = (s >>> 0) % w;
++      s = (s * 16807 + 0) % 2147483647;
++      var py = (s >>> 0) % h;
++      px(ctx, px_, py, "#444");
++    }
++    var kind = "generic";
++    if (/spiral/.test(thumbId)) kind = "spiral";
++    else if (/ellipt/.test(thumbId)) kind = "elliptical";
++    else if (/quasar/.test(thumbId)) kind = "quasar";
++    else if (/sol|sun/.test(thumbId)) kind = "sol";
++    var cx = w / 2, cy = h / 2;
++    if (kind === "spiral") {
++      fill(ctx, cx - 14, cy - 10, 28, 20, "#4da6ff");
++      fill(ctx, cx - 8, cy - 4, 16, 8, "#ffffff");
++      // bracos
++      fill(ctx, cx - 20, cy - 2, 12, 4, "#2a7db8");
++      fill(ctx, cx + 8, cy - 2, 12, 4, "#2a7db8");
++    } else if (kind === "elliptical") {
++      fill(ctx, cx - 16, cy - 10, 32, 20, "#ffd666");
++      fill(ctx, cx - 10, cy - 4, 20, 8, "#ffffff");
++    } else if (kind === "quasar") {
++      fill(ctx, cx - 12, cy - 12, 24, 24, "#66ccff");
++      fill(ctx, cx - 4, cy - 4, 8, 8, "#ffffff");
++      // jato
++      fill(ctx, cx - 6, cy - 20, 4, 14, "#2a7db8");
++      fill(ctx, cx + 2, cy - 20, 4, 14, "#2a7db8");
++    } else if (kind === "sol") {
++      fill(ctx, cx - 11, cy - 11, 22, 22, "#ffd666");
++      fill(ctx, cx - 5, cy - 5, 10, 10, "#ffffff");
++      for (var a = 0; a < 8; a++) {
++        var r = 24;
++        var x = cx + Math.round(Math.cos(a * Math.PI / 4) * r);
++        var y = cy + Math.round(Math.sin(a * Math.PI / 4) * r);
++        fill(ctx, x - 2, y - 2, 4, 4, "#ffb000");
++      }
++    } else {
++      fill(ctx, cx - 12, cy - 10, 24, 20, "#888");
++      fill(ctx, cx - 6, cy - 4, 12, 8, "#ddd");
++    }
++    // borda
++    ctx.strokeStyle = "#6dff85"; ctx.lineWidth = 2; ctx.strokeRect(1, 1, w - 2, h - 2);
++    ctx.restore();
++  }
++
++  return { drawThumbnail: drawThumbnail };
++});
+diff --git a/web/cockpit.js b/web/cockpit.js
+index a22b51f..46a91b1 100644
+--- a/web/cockpit.js
++++ b/web/cockpit.js
+@@ -20,14 +20,25 @@
+   var debugOn = false;
+   var fpsSamples = []; var fpsSum = 0;
+   var lastSteps = 0, lastDebug = 0;
+-  var simSteps = 0, simWindowStart = 0, simTicksPerSec = 0;
+-  var STAT = CockpitHud.STAT;
++var simSteps = 0, simWindowStart = 0, simTicksPerSec = 0;
++var STAT = CockpitHud.STAT;
++/* Screen flow: menu | map | intro | flight | transition */
++var screen = "menu";
++var mapPanel = document.getElementById("map");
++var introPanel = document.getElementById("intro");
++var transitionPanel = document.getElementById("transition");
++var MapWedgeInst = null;
+   /* Keymap panel (only in the initial menu, never during flight). */
+   var keymapPanelOpen = false;
+   var musicDirector = null, musicPairing = null;  // music:
+ 
+   function setStatus(t) { statusNode.textContent = t; }
+ 
++  function setScreen(s) {
++    screen = s;
++    if (typeof window.__cockpit !== "undefined") window.__cockpit.screen = s;
++  }
++
+   function sound(id) {
+     if (!soundOn || !id || typeof Howl !== "function") return;
+     if (!sounds[id]) sounds[id] = new Howl({ src: ["sounds/" + id + ".wav"], volume: 0.6, html5: false });
+@@ -153,6 +164,123 @@
+     if (typeof CockpitGamepad !== "undefined") CockpitGamepad.update(pressInput, togglePause);
+     requestAnimationFrame(frame);
+   }
++
++  /* ---------- Mapa (wedge) / intro ---------- */
++  function hideAllPanels() {
++    menu.hidden = true;
++    if (mapPanel) mapPanel.hidden = true;
++    if (introPanel) introPanel.hidden = true;
++    if (transitionPanel) transitionPanel.hidden = true;
++    endNode.hidden = true;
++    pauseNode.hidden = true;
++  }
++  function showMenu() {
++    hideAllPanels();
++    screen = "menu";
++    menu.hidden = false;
++    applyI18n();
++  }
++  function showMap() {
++    hideAllPanels();
++    screen = "map";
++    if (mapPanel) mapPanel.hidden = false;
++    applyI18n();
++    var MapWedgeCtor = typeof window.CockpitMapWedge !== "undefined" ? window.CockpitMapWedge : (typeof window.MapWedge !== "undefined" ? window.MapWedge : null);
++    if (!MapWedgeInst && MapWedgeCtor) {
++      MapWedgeInst = MapWedgeCtor;
++      MapWedgeInst.init("map-canvas", {
++        i18n: window.CockpitI18n ? window.CockpitI18n.t.bind(window.CockpitI18n) : function (k) { return k; },
++        nodes: window.CockpitNodes ? window.CockpitNodes.getAll() : null,
++        art: window.CockpitArt,
++        onLaunch: function (nodeId) { onMapLaunch(nodeId); },
++        onBack: function () { showMenu(); }
++      });
++      window.MapWedgeInst = MapWedgeInst;
++      if (typeof window.__cockpit !== "undefined") window.__cockpit.MapWedgeInst = MapWedgeInst;
++    } else if (MapWedgeInst) {
++      MapWedgeInst.render();
++    }
++    updateMapSidebar();
++  }
++  function showIntro(nodeId) {
++    hideAllPanels();
++    screen = "intro";
++    introPanel.hidden = false;
++    var t = window.CockpitI18n ? window.CockpitI18n.t : function (k) { return k; };
++    var title = document.getElementById("intro-title");
++    var text = document.getElementById("intro-text");
++    if (title) title.textContent = t("map.node." + nodeId) || nodeId;
++    if (text) text.textContent = t("map.node.desc." + nodeId) || "";
++    applyI18n();
++  }
++  function closeIntro() {
++    hideAllPanels();
++    screen = "map";
++    if (mapPanel) mapPanel.hidden = false;
++    applyI18n();
++  }
++  function startFlightFromIntro() {
++    hideAllPanels();
++    screen = "flight";
++    start();
++  }
++  function onMapSelect(nodeId) {
++    var n = MapWedgeInst ? MapWedgeInst.nodeOf(nodeId) : null;
++    if (!n) return;
++    updateMapSidebar();
++    if (n.state === "available" && n.level === "L0") {
++      showIntro(nodeId);
++    }
++  }
++  function onMapLaunch(nodeId) {
++    onMapSelect(nodeId);
++  }
++  function updateMapSidebar() {
++    if (!MapWedgeInst) return;
++    var sel = MapWedgeInst.selected();
++    var n = sel ? MapWedgeInst.nodeOf(sel) : null;
++    var nameEl = document.getElementById("map-node-name");
++    var descEl = document.getElementById("map-node-desc");
++    var thumbEl = document.getElementById("map-node-thumb");
++    var statusEl = document.getElementById("map-node-status");
++    var launchBtn = document.getElementById("map-launch");
++    var backBtn = document.getElementById("map-back-btn");
++    var t = window.CockpitI18n ? window.CockpitI18n.t : function (k) { return k; };
++    if (n) {
++      if (nameEl) nameEl.textContent = t(n.nameKey) || n.id;
++      if (descEl) descEl.textContent = t(n.descKey) || "";
++      if (thumbEl && window.CockpitArt) {
++        window.CockpitArt.drawThumbnail(thumbEl.getContext("2d"), n.thumb, 120, 72);
++      }
++      if (statusEl) {
++        if (n.state === "available") statusEl.textContent = t("map.available");
++        else if (n.state === "locked") statusEl.textContent = t("map.locked");
++        else if (n.state === "completed") statusEl.textContent = t("map.completed");
++      }
++      if (launchBtn) {
++        launchBtn.hidden = !(n.state === "available" && n.level === "L0");
++      }
++    } else {
++      if (nameEl) nameEl.textContent = "";
++      if (descEl) descEl.textContent = "";
++      if (thumbEl) thumbEl.getContext("2d").clearRect(0, 0, 120, 72);
++      if (statusEl) statusEl.textContent = "";
++      if (launchBtn) launchBtn.hidden = true;
++    }
++    if (backBtn) backBtn.onclick = showMenu;
++    var layerBtns = document.getElementById("map-layer-btns");
++    if (layerBtns && MapWedgeInst && MapWedgeInst.LAYERS) {
++      layerBtns.innerHTML = "";
++      MapWedgeInst.LAYERS.forEach(function (L, i) {
++        var btn = document.createElement("button");
++        btn.type = "button";
++        btn.textContent = t(L.labelKey) || L.id;
++        btn.className = "layer-btn" + (MapWedgeInst.currentLayer === i ? " active" : "");
++        btn.onclick = function () { MapWedgeInst.setLayer(i); updateMapSidebar(); };
++        layerBtns.appendChild(btn);
++      });
++    }
++  }
+   function start() {
+     if (musicDirector) musicDirector.start();  // music: needs a user gesture (menu click or Enter)
+     if (core._cs_init(shipType, seed) !== 0) { setStatus("Tipo de nave inválido."); return; }
+@@ -185,6 +313,27 @@
+   }
+ 
+   window.addEventListener("keydown", function (e) {
++    if (screen === "map") {
++      if (!MapWedgeInst) return;
++      var r = MapWedgeInst.keydown(e);
++      if (r === "back") { showMenu(); e.preventDefault(); return; }
++      if (r === "select") {
++        var sel = MapWedgeInst.selected();
++        if (sel) onMapSelect(sel);
++        e.preventDefault(); return;
++      }
++      if (r === true) { updateMapSidebar(); e.preventDefault(); return; }
++    }
++    if (screen === "intro") {
++      if (e.code === "Enter" || e.code === "Space" || e.code === "NumpadEnter") {
++        startFlightFromIntro(); e.preventDefault(); return;
++      }
++      if (e.code === "Escape") { closeIntro(); e.preventDefault(); return; }
++    }
++    if (screen === "menu") {
++      if (e.code === "Enter") { showMap(); e.preventDefault(); return; }
++      if (e.code === "Escape") { e.preventDefault(); return; }
++    }
+     if (!core) return;
+     if (keymapPanelOpen && CockpitKeymap.captureState().active) {
+       var cap = CockpitKeymap.handleCaptureKey(e.code);
+@@ -194,7 +343,10 @@
+       return;
+     }
+     if (keymapPanelOpen) { if (e.code === "Escape") closeKeymapPanel(); e.preventDefault(); return; }
+-    if (e.code === "Enter" && (menu.hidden === false || ended)) { start(); e.preventDefault(); return; }
++    if (e.code === "Enter") {
++      if (ended) { start(); e.preventDefault(); return; }
++      if (menu.hidden === false) { showMap(); e.preventDefault(); return; }
++    }
+     if (e.code === "Escape" && menu.hidden === true && !ended) { togglePause(); e.preventDefault(); return; }
+     if (e.code === "KeyI" && menu.hidden === true && !ended) {
+       releaseAll(); CockpitSettings.setInverted(!CockpitSettings.isInverted()); updatePitchText(); e.preventDefault(); return;
+@@ -290,6 +442,12 @@
+     ["pointerup", "pointercancel", "pointerleave"].forEach(function (n) { b.addEventListener(n, function () { pressInput(a, false); }); });
+   });
+   document.getElementById("restart").addEventListener("click", start);
++  var mapBack = document.getElementById("map-back");
++  if (mapBack) mapBack.addEventListener("click", showMenu);
++  var introStart = document.getElementById("intro-start");
++  if (introStart) introStart.addEventListener("click", function () { startFlightFromIntro(); });
++  var introBack = document.getElementById("intro-back");
++  if (introBack) introBack.addEventListener("click", function () { closeIntro(); });
+   document.getElementById("sound").addEventListener("click", function (e) {
+     soundOn = !soundOn; e.target.textContent = soundOn ? "SOM LIGADO" : "SOM DESLIGADO"; e.target.setAttribute("aria-pressed", String(!soundOn));
+     /* music: respect sound button */
+@@ -304,6 +462,14 @@
+   if (btnKeymapReset) btnKeymapReset.addEventListener("click", function () {
+     CockpitKeymap.resetAll(); renderKeymapPanel(); showMsg("");
+   });
++  var btnLangEn = document.getElementById("btn-lang-en");
++  var btnLangPt = document.getElementById("btn-lang-pt");
++  if (btnLangEn) btnLangEn.addEventListener("click", function () {
++    if (window.CockpitI18n) { window.CockpitI18n.setLang("en"); applyI18n(); }
++  });
++  if (btnLangPt) btnLangPt.addEventListener("click", function () {
++    if (window.CockpitI18n) { window.CockpitI18n.setLang("pt-PT"); applyI18n(); }
++  });
+   try { renderer = new CockpitRenderer(glCanvas, 70); } catch (err) { setStatus("WebGL indisponível: " + err.message); return; }
+   if (typeof createCockpit !== "function") { setStatus("cockpit.js não encontrado: execute make -f web/Makefile all."); return; }
+   try { CockpitSettings.useStorage(window.localStorage); } catch (err) { /* storage blocked: defaults only */ }
+@@ -314,6 +480,6 @@
+   musicDirector = CockpitMusicDirector.create(CockpitSynth, CockpitMusic, musicPairing);  // music:
+   updatePitchText();
+   createCockpit().then(function (m) {
+-    core = m; window.__cockpit = m; resize(); setStatus(""); menu.hidden = false;
++    core = m; window.__cockpit = m; window.__cockpit.screen = screen; resize(); setStatus(""); menu.hidden = false;
+   }).catch(function (e) { setStatus("Falha ao carregar WebAssembly: " + e); });
+ })();
+diff --git a/web/data/nodes-wedge.json b/web/data/nodes-wedge.json
+new file mode 100644
+index 0000000..8957e19
+--- /dev/null
++++ b/web/data/nodes-wedge.json
+@@ -0,0 +1,3770 @@
++{
++  "version": 2,
++  "seed": 12345,
++  "layers": [
++    "spirals",
++    "ellipticals",
++    "ellipticalsZ",
++    "quasars",
++    "quasarsZ"
++  ],
++  "nodes": [
++    {
++      "id": "sol",
++      "nameKey": "map.node.sol",
++      "kind": "spiral",
++      "layer": 0,
++      "angle": 0.39121047774770873,
++      "radius": 0.42313165905139466,
++      "edges": [
++        "n0_6",
++        "sirius",
++        "n0_7"
++      ],
++      "level": "L0",
++      "state": "available",
++      "thumb": "spiral-1"
++    },
++    {
++      "id": "alpha-centauri",
++      "nameKey": "map.node.alphaCentauri",
++      "kind": "spiral",
++      "layer": 0,
++      "angle": 0.3783236432203527,
++      "radius": 0.4065622342572221,
++      "edges": [
++        "sol",
++        "n0_6",
++        "n0_7",
++        "n1_30"
++      ],
++      "level": "L0",
++      "state": "available",
++      "thumb": "spiral-2"
++    },
++    {
++      "id": "proxima",
++      "nameKey": "map.node.proxima",
++      "kind": "spiral",
++      "layer": 0,
++      "angle": 0.43952387046232644,
++      "radius": 0.13747695657931694,
++      "edges": [
++        "vega"
++      ],
++      "level": "L0",
++      "state": "available",
++      "thumb": "spiral-3"
++    },
++    {
++      "id": "barnard",
++      "nameKey": "map.node.barnard",
++      "kind": "spiral",
++      "layer": 0,
++      "angle": 0.43471890628062443,
++      "radius": 0.40575638466118624,
++      "edges": [
++        "n0_7",
++        "n1_40"
++      ],
++      "level": "L0",
++      "state": "available",
++      "thumb": "spiral-1"
++    },
++    {
++      "id": "sirius",
++      "nameKey": "map.node.sirius",
++      "kind": "spiral",
++      "layer": 0,
++      "angle": 0.4047308030117539,
++      "radius": 0.4365679281028725,
++      "edges": [
++        "sol"
++      ],
++      "level": "L0",
++      "state": "available",
++      "thumb": "spiral-2"
++    },
++    {
++      "id": "vega",
++      "nameKey": "map.node.vega",
++      "kind": "spiral",
++      "layer": 0,
++      "angle": 0.37432501978575083,
++      "radius": 0.25159349328921454,
++      "edges": [
++        "n0_8",
++        "proxima",
++        "alpha-centauri",
++        "n1_26"
++      ],
++      "level": "L0",
++      "state": "available",
++      "thumb": "spiral-3"
++    },
++    {
++      "id": "n0_6",
++      "nameKey": "map.node.n0_6",
++      "kind": "spiral",
++      "layer": 0,
++      "angle": 0.4065034241838551,
++      "radius": 0.4130183926093519,
++      "edges": [
++        "n0_7",
++        "sol",
++        "sirius"
++      ],
++      "level": "L0",
++      "state": "available",
++      "thumb": "spiral-1"
++    },
++    {
++      "id": "n0_7",
++      "nameKey": "map.node.n0_7",
++      "kind": "spiral",
++      "layer": 0,
++      "angle": 0.40711105164072053,
++      "radius": 0.4112542880977561,
++      "edges": [
++        "n0_6",
++        "sol",
++        "sirius",
++        "n1_40"
++      ],
++      "level": "L0",
++      "state": "available",
++      "thumb": "spiral-2"
++    },
++    {
++      "id": "n0_8",
++      "nameKey": "map.node.n0_8",
++      "kind": "spiral",
++      "layer": 0,
++      "angle": 0.3763288940300136,
++      "radius": 0.3104758589876011,
++      "edges": [
++        "vega"
++      ],
++      "level": "L0",
++      "state": "available",
++      "thumb": "spiral-3"
++    },
++    {
++      "id": "n0_9",
++      "nameKey": "map.node.n0_9",
++      "kind": "spiral",
++      "layer": 0,
++      "angle": 0.7478035158514195,
++      "radius": 0.24033601159138054,
++      "edges": [
++        "n0_10"
++      ],
++      "level": "L0",
++      "state": "available",
++      "thumb": "spiral-1"
++    },
++    {
++      "id": "n0_10",
++      "nameKey": "map.node.n0_10",
++      "kind": "spiral",
++      "layer": 0,
++      "angle": 0.7975738642008303,
++      "radius": 0.249170277041011,
++      "edges": [
++        "n0_9",
++        "n0_16",
++        "n0_13"
++      ],
++      "level": "L0",
++      "state": "available",
++      "thumb": "spiral-2"
++    },
++    {
++      "id": "n0_11",
++      "nameKey": "map.node.n0_11",
++      "kind": "spiral",
++      "layer": 0,
++      "angle": 0.7582537203457542,
++      "radius": 0.41722730009527453,
++      "edges": [
++        "n0_14",
++        "n1_41"
++      ],
++      "level": "L0",
++      "state": "available",
++      "thumb": "spiral-3"
++    },
++    {
++      "id": "n0_12",
++      "nameKey": "map.node.n0_12",
++      "kind": "spiral",
++      "layer": 0,
++      "angle": 0.8145386240552874,
++      "radius": 0.012005421800144401,
++      "edges": [
++        "n0_13",
++        "n0_10",
++        "n0_9",
++        "n1_43"
++      ],
++      "level": "L0",
++      "state": "available",
++      "thumb": "spiral-1"
++    },
++    {
++      "id": "n0_13",
++      "nameKey": "map.node.n0_13",
++      "kind": "spiral",
++      "layer": 0,
++      "angle": 0.8044857656077818,
++      "radius": 0.09824425925877085,
++      "edges": [
++        "n0_12"
++      ],
++      "level": "L0",
++      "state": "available",
++      "thumb": "spiral-2"
++    },
++    {
++      "id": "n0_14",
++      "nameKey": "map.node.n0_14",
++      "kind": "spiral",
++      "layer": 0,
++      "angle": 0.7914870181545747,
++      "radius": 0.4062159513647939,
++      "edges": [
++        "n0_15",
++        "n0_11",
++        "n0_16",
++        "n1_35"
++      ],
++      "level": "L0",
++      "state": "available",
++      "thumb": "spiral-3"
++    },
++    {
++      "id": "n0_15",
++      "nameKey": "map.node.n0_15",
++      "kind": "spiral",
++      "layer": 0,
++      "angle": 0.8176214961529418,
++      "radius": 0.4230278209605647,
++      "edges": [
++        "n0_14",
++        "n0_11",
++        "n1_30"
++      ],
++      "level": "L0",
++      "state": "available",
++      "thumb": "spiral-1"
++    },
++    {
++      "id": "n0_16",
++      "nameKey": "map.node.n0_16",
++      "kind": "spiral",
++      "layer": 0,
++      "angle": 0.763114412819049,
++      "radius": 0.3203701375616245,
++      "edges": [
++        "n0_10",
++        "n0_9",
++        "n0_14",
++        "n1_39"
++      ],
++      "level": "L0",
++      "state": "available",
++      "thumb": "spiral-2"
++    },
++    {
++      "id": "n0_17",
++      "nameKey": "map.node.n0_17",
++      "kind": "spiral",
++      "layer": 0,
++      "angle": 1.1597621554524935,
++      "radius": 0.35366660579957265,
++      "edges": [
++        "n0_24"
++      ],
++      "level": "L0",
++      "state": "available",
++      "thumb": "spiral-1"
++    },
++    {
++      "id": "n0_18",
++      "nameKey": "map.node.n0_18",
++      "kind": "spiral",
++      "layer": 0,
++      "angle": 1.1719761543028,
++      "radius": 0.1631941750580824,
++      "edges": [
++        "n0_20",
++        "n0_22",
++        "n1_44"
++      ],
++      "level": "L0",
++      "state": "available",
++      "thumb": "spiral-2"
++    },
++    {
++      "id": "n0_19",
++      "nameKey": "map.node.n0_19",
++      "kind": "spiral",
++      "layer": 0,
++      "angle": 1.132170528867753,
++      "radius": 0.40396681759288333,
++      "edges": [
++        "n0_23",
++        "n0_21",
++        "n0_17",
++        "n1_35"
++      ],
++      "level": "L0",
++      "state": "available",
++      "thumb": "spiral-3"
++    },
++    {
++      "id": "n0_20",
++      "nameKey": "map.node.n0_20",
++      "kind": "spiral",
++      "layer": 0,
++      "angle": 1.1711757575966644,
++      "radius": 0.22871972143028868,
++      "edges": [
++        "n0_18",
++        "n0_22"
++      ],
++      "level": "L0",
++      "state": "available",
++      "thumb": "spiral-1"
++    },
++    {
++      "id": "n0_21",
++      "nameKey": "map.node.n0_21",
++      "kind": "spiral",
++      "layer": 0,
++      "angle": 1.1385109298358176,
++      "radius": 0.38817602162760817,
++      "edges": [
++        "n0_23",
++        "n0_19",
++        "n0_17",
++        "n1_42"
++      ],
++      "level": "L0",
++      "state": "available",
++      "thumb": "spiral-2"
++    },
++    {
++      "id": "n0_22",
++      "nameKey": "map.node.n0_22",
++      "kind": "spiral",
++      "layer": 0,
++      "angle": 1.2228183718082064,
++      "radius": 0.3187502775535223,
++      "edges": [
++        "n0_24"
++      ],
++      "level": "L0",
++      "state": "available",
++      "thumb": "spiral-3"
++    },
++    {
++      "id": "n0_23",
++      "nameKey": "map.node.n0_23",
++      "kind": "spiral",
++      "layer": 0,
++      "angle": 1.1310502475173667,
++      "radius": 0.3895706844619479,
++      "edges": [
++        "n0_21",
++        "n0_19",
++        "n0_17"
++      ],
++      "level": "L0",
++      "state": "available",
++      "thumb": "spiral-1"
++    },
++    {
++      "id": "n0_24",
++      "nameKey": "map.node.n0_24",
++      "kind": "spiral",
++      "layer": 0,
++      "angle": 1.1783471794273976,
++      "radius": 0.34827475901660576,
++      "edges": [
++        "n0_17",
++        "n1_38"
++      ],
++      "level": "L0",
++      "state": "available",
++      "thumb": "spiral-2"
++    },
++    {
++      "id": "n1_25",
++      "nameKey": "map.node.n1_25",
++      "kind": "elliptical",
++      "layer": 1,
++      "angle": 0.43200756450212774,
++      "radius": 0.5057250437506494,
++      "edges": [
++        "n1_26",
++        "n1_29",
++        "n1_30"
++      ],
++      "level": null,
++      "state": "locked",
++      "thumb": "elliptical-1"
++    },
++    {
++      "id": "n1_26",
++      "nameKey": "map.node.n1_26",
++      "kind": "elliptical",
++      "layer": 1,
++      "angle": 0.37352265424057673,
++      "radius": 0.5209882994815389,
++      "edges": [
++        "n1_25",
++        "n1_29"
++      ],
++      "level": null,
++      "state": "locked",
++      "thumb": "elliptical-2"
++    },
++    {
++      "id": "n1_27",
++      "nameKey": "map.node.n1_27",
++      "kind": "elliptical",
++      "layer": 1,
++      "angle": 0.3608655990855967,
++      "radius": 0.624336956116086,
++      "edges": [
++        "n1_28"
++      ],
++      "level": null,
++      "state": "locked",
++      "thumb": "elliptical-3"
++    },
++    {
++      "id": "n1_28",
++      "nameKey": "map.node.n1_28",
++      "kind": "elliptical",
++      "layer": 1,
++      "angle": 0.39670752073578525,
++      "radius": 0.6371553006631914,
++      "edges": [
++        "n1_31"
++      ],
++      "level": null,
++      "state": "locked",
++      "thumb": "elliptical-1"
++    },
++    {
++      "id": "n1_29",
++      "nameKey": "map.node.n1_29",
++      "kind": "elliptical",
++      "layer": 1,
++      "angle": 0.4120642060152531,
++      "radius": 0.44192729167351746,
++      "edges": [
++        "n1_25",
++        "n1_26"
++      ],
++      "level": null,
++      "state": "locked",
++      "thumb": "elliptical-2"
++    },
++    {
++      "id": "n1_30",
++      "nameKey": "map.node.n1_30",
++      "kind": "elliptical",
++      "layer": 1,
++      "angle": 0.4347521322003888,
++      "radius": 0.5954695304622752,
++      "edges": [
++        "n1_31",
++        "n2_52"
++      ],
++      "level": null,
++      "state": "locked",
++      "thumb": "elliptical-3"
++    },
++    {
++      "id": "n1_31",
++      "nameKey": "map.node.n1_31",
++      "kind": "elliptical",
++      "layer": 1,
++      "angle": 0.42857367812891983,
++      "radius": 0.6312194112644097,
++      "edges": [
++        "n1_28"
++      ],
++      "level": null,
++      "state": "locked",
++      "thumb": "elliptical-1"
++    },
++    {
++      "id": "n1_32",
++      "nameKey": "map.node.n1_32",
++      "kind": "elliptical",
++      "layer": 1,
++      "angle": 0.7606400491328982,
++      "radius": 0.558414345752032,
++      "edges": [
++        "n1_33",
++        "n1_35",
++        "n2_45"
++      ],
++      "level": null,
++      "state": "locked",
++      "thumb": "elliptical-1"
++    },
++    {
++      "id": "n1_33",
++      "nameKey": "map.node.n1_33",
++      "kind": "elliptical",
++      "layer": 1,
++      "angle": 0.7811334341036121,
++      "radius": 0.5345247892635707,
++      "edges": [
++        "n1_35",
++        "n2_58"
++      ],
++      "level": null,
++      "state": "locked",
++      "thumb": "elliptical-2"
++    },
++    {
++      "id": "n1_34",
++      "nameKey": "map.node.n1_34",
++      "kind": "elliptical",
++      "layer": 1,
++      "angle": 0.771597271460618,
++      "radius": 0.4721920865049275,
++      "edges": [
++        "n1_35",
++        "n1_38"
++      ],
++      "level": null,
++      "state": "locked",
++      "thumb": "elliptical-3"
++    },
++    {
++      "id": "n1_35",
++      "nameKey": "map.node.n1_35",
++      "kind": "elliptical",
++      "layer": 1,
++      "angle": 0.7626214882191037,
++      "radius": 0.518857596288255,
++      "edges": [
++        "n1_33",
++        "n2_54"
++      ],
++      "level": null,
++      "state": "locked",
++      "thumb": "elliptical-1"
++    },
++    {
++      "id": "n1_36",
++      "nameKey": "map.node.n1_36",
++      "kind": "elliptical",
++      "layer": 1,
++      "angle": 0.8295107660081823,
++      "radius": 0.6059136021882671,
++      "edges": [
++        "n1_37",
++        "n1_32"
++      ],
++      "level": null,
++      "state": "locked",
++      "thumb": "elliptical-2"
++    },
++    {
++      "id": "n1_37",
++      "nameKey": "map.node.n1_37",
++      "kind": "elliptical",
++      "layer": 1,
++      "angle": 0.7969916064864307,
++      "radius": 0.6163089868672742,
++      "edges": [
++        "n1_36",
++        "n1_32"
++      ],
++      "level": null,
++      "state": "locked",
++      "thumb": "elliptical-3"
++    },
++    {
++      "id": "n1_38",
++      "nameKey": "map.node.n1_38",
++      "kind": "elliptical",
++      "layer": 1,
++      "angle": 0.8315449124308885,
++      "radius": 0.4740305869281536,
++      "edges": [
++        "n1_34",
++        "n1_33",
++        "n1_35"
++      ],
++      "level": null,
++      "state": "locked",
++      "thumb": "elliptical-1"
++    },
++    {
++      "id": "n1_39",
++      "nameKey": "map.node.n1_39",
++      "kind": "elliptical",
++      "layer": 1,
++      "angle": 1.2216437767275494,
++      "radius": 0.44923105768229304,
++      "edges": [
++        "n1_43",
++        "n1_44"
++      ],
++      "level": null,
++      "state": "locked",
++      "thumb": "elliptical-1"
++    },
++    {
++      "id": "n1_40",
++      "nameKey": "map.node.n1_40",
++      "kind": "elliptical",
++      "layer": 1,
++      "angle": 1.140369229518944,
++      "radius": 0.5975427116906482,
++      "edges": [
++        "n1_42",
++        "n1_41",
++        "n1_43"
++      ],
++      "level": null,
++      "state": "locked",
++      "thumb": "elliptical-2"
++    },
++    {
++      "id": "n1_41",
++      "nameKey": "map.node.n1_41",
++      "kind": "elliptical",
++      "layer": 1,
++      "angle": 1.1310900208220847,
++      "radius": 0.5791179907663447,
++      "edges": [
++        "n1_42",
++        "n1_40",
++        "n1_43"
++      ],
++      "level": null,
++      "state": "locked",
++      "thumb": "elliptical-3"
++    },
++    {
++      "id": "n1_42",
++      "nameKey": "map.node.n1_42",
++      "kind": "elliptical",
++      "layer": 1,
++      "angle": 1.137661606814676,
++      "radius": 0.5923012011357548,
++      "edges": [
++        "n1_40"
++      ],
++      "level": null,
++      "state": "locked",
++      "thumb": "elliptical-1"
++    },
++    {
++      "id": "n1_43",
++      "nameKey": "map.node.n1_43",
++      "kind": "elliptical",
++      "layer": 1,
++      "angle": 1.1575702055121802,
++      "radius": 0.5358181744734853,
++      "edges": [
++        "n1_41",
++        "n2_46"
++      ],
++      "level": null,
++      "state": "locked",
++      "thumb": "elliptical-2"
++    },
++    {
++      "id": "n1_44",
++      "nameKey": "map.node.n1_44",
++      "kind": "elliptical",
++      "layer": 1,
++      "angle": 1.2087512342961506,
++      "radius": 0.602288669034368,
++      "edges": [
++        "n1_40",
++        "n1_42",
++        "n1_41"
++      ],
++      "level": null,
++      "state": "locked",
++      "thumb": "elliptical-3"
++    },
++    {
++      "id": "n2_45",
++      "nameKey": "map.node.n2_45",
++      "kind": "elliptical",
++      "layer": 2,
++      "angle": 0.3819419263285962,
++      "radius": 0.7616568645285389,
++      "edges": [
++        "n2_46",
++        "n2_49",
++        "n2_47"
++      ],
++      "level": null,
++      "state": "locked",
++      "thumb": "elliptical-1"
++    },
++    {
++      "id": "n2_46",
++      "nameKey": "map.node.n2_46",
++      "kind": "elliptical",
++      "layer": 2,
++      "angle": 0.3862448438846696,
++      "radius": 0.7767061883652111,
++      "edges": [
++        "n2_45",
++        "n2_49",
++        "n3_62"
++      ],
++      "level": null,
++      "state": "locked",
++      "thumb": "elliptical-2"
++    },
++    {
++      "id": "n2_47",
++      "nameKey": "map.node.n2_47",
++      "kind": "elliptical",
++      "layer": 2,
++      "angle": 0.4258297764680019,
++      "radius": 0.7476575414332792,
++      "edges": [
++        "n2_49",
++        "n3_65"
++      ],
++      "level": null,
++      "state": "locked",
++      "thumb": "elliptical-3"
++    },
++    {
++      "id": "n2_48",
++      "nameKey": "map.node.n2_48",
++      "kind": "elliptical",
++      "layer": 2,
++      "angle": 0.3865036774903568,
++      "radius": 0.6745108584572762,
++      "edges": [
++        "n2_49",
++        "n2_47",
++        "n3_68"
++      ],
++      "level": null,
++      "state": "locked",
++      "thumb": "elliptical-1"
++    },
++    {
++      "id": "n2_49",
++      "nameKey": "map.node.n2_49",
++      "kind": "elliptical",
++      "layer": 2,
++      "angle": 0.3900879419820455,
++      "radius": 0.7406824085972351,
++      "edges": [
++        "n2_45"
++      ],
++      "level": null,
++      "state": "locked",
++      "thumb": "elliptical-2"
++    },
++    {
++      "id": "n2_50",
++      "nameKey": "map.node.n2_50",
++      "kind": "elliptical",
++      "layer": 2,
++      "angle": 0.7509106088253992,
++      "radius": 0.6218097042347429,
++      "edges": [
++        "n2_54",
++        "n2_51",
++        "n2_53",
++        "n3_61"
++      ],
++      "level": null,
++      "state": "locked",
++      "thumb": "elliptical-1"
++    },
++    {
++      "id": "n2_51",
++      "nameKey": "map.node.n2_51",
++      "kind": "elliptical",
++      "layer": 2,
++      "angle": 0.7388501859154613,
++      "radius": 0.7254554205585979,
++      "edges": [
++        "n2_52"
++      ],
++      "level": null,
++      "state": "locked",
++      "thumb": "elliptical-2"
++    },
++    {
++      "id": "n2_52",
++      "nameKey": "map.node.n2_52",
++      "kind": "elliptical",
++      "layer": 2,
++      "angle": 0.7871494448006625,
++      "radius": 0.74637806014115,
++      "edges": [
++        "n2_53",
++        "n3_63"
++      ],
++      "level": null,
++      "state": "locked",
++      "thumb": "elliptical-3"
++    },
++    {
++      "id": "n2_53",
++      "nameKey": "map.node.n2_53",
++      "kind": "elliptical",
++      "layer": 2,
++      "angle": 0.8016756671159002,
++      "radius": 0.7214983322533891,
++      "edges": [
++        "n2_52",
++        "n2_54",
++        "n3_68"
++      ],
++      "level": null,
++      "state": "locked",
++      "thumb": "elliptical-1"
++    },
++    {
++      "id": "n2_54",
++      "nameKey": "map.node.n2_54",
++      "kind": "elliptical",
++      "layer": 2,
++      "angle": 0.8299538055478146,
++      "radius": 0.6789579871167692,
++      "edges": [
++        "n2_53",
++        "n2_52",
++        "n2_50",
++        "n3_67"
++      ],
++      "level": null,
++      "state": "locked",
++      "thumb": "elliptical-2"
++    },
++    {
++      "id": "n2_55",
++      "nameKey": "map.node.n2_55",
++      "kind": "elliptical",
++      "layer": 2,
++      "angle": 1.1942904436106314,
++      "radius": 0.6676188716012941,
++      "edges": [
++        "n2_56",
++        "n2_59",
++        "n3_69"
++      ],
++      "level": null,
++      "state": "locked",
++      "thumb": "elliptical-1"
++    },
++    {
++      "id": "n2_56",
++      "nameKey": "map.node.n2_56",
++      "kind": "elliptical",
++      "layer": 2,
++      "angle": 1.197742744713858,
++      "radius": 0.6835858928748476,
++      "edges": [
++        "n2_55",
++        "n2_59",
++        "n3_69"
++      ],
++      "level": null,
++      "state": "locked",
++      "thumb": "elliptical-2"
++    },
++    {
++      "id": "n2_57",
++      "nameKey": "map.node.n2_57",
++      "kind": "elliptical",
++      "layer": 2,
++      "angle": 1.214025274455607,
++      "radius": 0.7705263851054385,
++      "edges": [
++        "n2_58",
++        "n2_59",
++        "n2_56",
++        "n3_62"
++      ],
++      "level": null,
++      "state": "locked",
++      "thumb": "elliptical-3"
++    },
++    {
++      "id": "n2_58",
++      "nameKey": "map.node.n2_58",
++      "kind": "elliptical",
++      "layer": 2,
++      "angle": 1.1438292596133715,
++      "radius": 0.7527258067294681,
++      "edges": [
++        "n2_59",
++        "n3_67"
++      ],
++      "level": null,
++      "state": "locked",
++      "thumb": "elliptical-1"
++    },
++    {
++      "id": "n2_59",
++      "nameKey": "map.node.n2_59",
++      "kind": "elliptical",
++      "layer": 2,
++      "angle": 1.1467707298018688,
++      "radius": 0.7306921980577502,
++      "edges": [
++        "n2_58",
++        "n2_56",
++        "n3_67"
++      ],
++      "level": null,
++      "state": "locked",
++      "thumb": "elliptical-2"
++    },
++    {
++      "id": "n3_60",
++      "nameKey": "map.node.n3_60",
++      "kind": "quasar",
++      "layer": 3,
++      "angle": 0.40724568420367857,
++      "radius": 0.8371971605792653,
++      "edges": [
++        "n3_61"
++      ],
++      "level": null,
++      "state": "locked",
++      "thumb": "quasar-1"
++    },
++    {
++      "id": "n3_61",
++      "nameKey": "map.node.n3_61",
++      "kind": "quasar",
++      "layer": 3,
++      "angle": 0.43781440256401255,
++      "radius": 0.8350149001947793,
++      "edges": [
++        "n3_60",
++        "n3_62",
++        "n3_63"
++      ],
++      "level": null,
++      "state": "locked",
++      "thumb": "quasar-2"
++    },
++    {
++      "id": "n3_62",
++      "nameKey": "map.node.n3_62",
++      "kind": "quasar",
++      "layer": 3,
++      "angle": 0.42032100872548517,
++      "radius": 0.8915901104620885,
++      "edges": [
++        "n3_60",
++        "n3_61",
++        "n4_78"
++      ],
++      "level": null,
++      "state": "locked",
++      "thumb": "quasar-3"
++    },
++    {
++      "id": "n3_63",
++      "nameKey": "map.node.n3_63",
++      "kind": "quasar",
++      "layer": 3,
++      "angle": 0.3594049773268948,
++      "radius": 0.8582204985370101,
++      "edges": [
++        "n3_60",
++        "n3_62",
++        "n3_61",
++        "n4_74"
++      ],
++      "level": null,
++      "state": "locked",
++      "thumb": "quasar-1"
++    },
++    {
++      "id": "n3_64",
++      "nameKey": "map.node.n3_64",
++      "kind": "quasar",
++      "layer": 3,
++      "angle": 0.7525891380032197,
++      "radius": 0.8039837001493079,
++      "edges": [
++        "n3_66",
++        "n3_65",
++        "n4_79"
++      ],
++      "level": null,
++      "state": "locked",
++      "thumb": "quasar-1"
++    },
++    {
++      "id": "n3_65",
++      "nameKey": "map.node.n3_65",
++      "kind": "quasar",
++      "layer": 3,
++      "angle": 0.789984165279063,
++      "radius": 0.7794359656966976,
++      "edges": [
++        "n3_66"
++      ],
++      "level": null,
++      "state": "locked",
++      "thumb": "quasar-2"
++    },
++    {
++      "id": "n3_66",
++      "nameKey": "map.node.n3_66",
++      "kind": "quasar",
++      "layer": 3,
++      "angle": 0.7724790743571909,
++      "radius": 0.7766284712433922,
++      "edges": [
++        "n3_65",
++        "n4_79"
++      ],
++      "level": null,
++      "state": "locked",
++      "thumb": "quasar-3"
++    },
++    {
++      "id": "n3_67",
++      "nameKey": "map.node.n3_67",
++      "kind": "quasar",
++      "layer": 3,
++      "angle": 0.7860892483704256,
++      "radius": 0.8661646088789213,
++      "edges": [
++        "n3_64",
++        "n3_65"
++      ],
++      "level": null,
++      "state": "locked",
++      "thumb": "quasar-1"
++    },
++    {
++      "id": "n3_68",
++      "nameKey": "map.node.n3_68",
++      "kind": "quasar",
++      "layer": 3,
++      "angle": 1.1568452792722068,
++      "radius": 0.8557882688530837,
++      "edges": [
++        "n3_70"
++      ],
++      "level": null,
++      "state": "locked",
++      "thumb": "quasar-1"
++    },
++    {
++      "id": "n3_69",
++      "nameKey": "map.node.n3_69",
++      "kind": "quasar",
++      "layer": 3,
++      "angle": 1.1378157531833768,
++      "radius": 0.7748769263802336,
++      "edges": [
++        "n3_68",
++        "n4_75"
++      ],
++      "level": null,
++      "state": "locked",
++      "thumb": "quasar-2"
++    },
++    {
++      "id": "n3_70",
++      "nameKey": "map.node.n3_70",
++      "kind": "quasar",
++      "layer": 3,
++      "angle": 1.1986127943290883,
++      "radius": 0.8456737547167976,
++      "edges": [
++        "n3_71",
++        "n3_68",
++        "n3_69",
++        "n4_80"
++      ],
++      "level": null,
++      "state": "locked",
++      "thumb": "quasar-3"
++    },
++    {
++      "id": "n3_71",
++      "nameKey": "map.node.n3_71",
++      "kind": "quasar",
++      "layer": 3,
++      "angle": 1.212807680665024,
++      "radius": 0.8741961670753462,
++      "edges": [
++        "n3_70",
++        "n3_68",
++        "n4_77"
++      ],
++      "level": null,
++      "state": "locked",
++      "thumb": "quasar-1"
++    },
++    {
++      "id": "n4_72",
++      "nameKey": "map.node.n4_72",
++      "kind": "quasar",
++      "layer": 4,
++      "angle": 0.3983240734403798,
++      "radius": 0.9961645591862185,
++      "edges": [
++        "n4_74"
++      ],
++      "level": null,
++      "state": "locked",
++      "thumb": "quasar-1"
++    },
++    {
++      "id": "n4_73",
++      "nameKey": "map.node.n4_73",
++      "kind": "quasar",
++      "layer": 4,
++      "angle": 0.3675996967416227,
++      "radius": 0.9277715199000176,
++      "edges": [
++        "n4_74",
++        "n4_75"
++      ],
++      "level": null,
++      "state": "locked",
++      "thumb": "quasar-2"
++    },
++    {
++      "id": "n4_74",
++      "nameKey": "map.node.n4_74",
++      "kind": "quasar",
++      "layer": 4,
++      "angle": 0.3869229289945505,
++      "radius": 0.9299049845167063,
++      "edges": [
++        "n4_73",
++        "n4_75",
++        "n4_72"
++      ],
++      "level": null,
++      "state": "locked",
++      "thumb": "quasar-3"
++    },
++    {
++      "id": "n4_75",
++      "nameKey": "map.node.n4_75",
++      "kind": "quasar",
++      "layer": 4,
++      "angle": 0.34750486345241455,
++      "radius": 0.9153592188358715,
++      "edges": [
++        "n4_73",
++        "n4_74"
++      ],
++      "level": null,
++      "state": "locked",
++      "thumb": "quasar-1"
++    },
++    {
++      "id": "n4_76",
++      "nameKey": "map.node.n4_76",
++      "kind": "quasar",
++      "layer": 4,
++      "angle": 0.812588694139851,
++      "radius": 0.9133601925630401,
++      "edges": [
++        "n4_78",
++        "n4_77",
++        "n4_80"
++      ],
++      "level": null,
++      "state": "locked",
++      "thumb": "quasar-1"
++    },
++    {
++      "id": "n4_77",
++      "nameKey": "map.node.n4_77",
++      "kind": "quasar",
++      "layer": 4,
++      "angle": 0.7580289900156911,
++      "radius": 0.9896109219511594,
++      "edges": [
++        "n4_78"
++      ],
++      "level": null,
++      "state": "locked",
++      "thumb": "quasar-2"
++    },
++    {
++      "id": "n4_78",
++      "nameKey": "map.node.n4_78",
++      "kind": "quasar",
++      "layer": 4,
++      "angle": 0.8119084582770684,
++      "radius": 0.9352717288979776,
++      "edges": [
++        "n4_76",
++        "n4_77",
++        "n4_80"
++      ],
++      "level": null,
++      "state": "locked",
++      "thumb": "quasar-3"
++    },
++    {
++      "id": "n4_79",
++      "nameKey": "map.node.n4_79",
++      "kind": "quasar",
++      "layer": 4,
++      "angle": 1.2109969963540688,
++      "radius": 0.9581009610039777,
++      "edges": [
++        "n4_81"
++      ],
++      "level": null,
++      "state": "locked",
++      "thumb": "quasar-1"
++    },
++    {
++      "id": "n4_80",
++      "nameKey": "map.node.n4_80",
++      "kind": "quasar",
++      "layer": 4,
++      "angle": 1.191745039181577,
++      "radius": 0.9564110017677768,
++      "edges": [
++        "n4_79",
++        "n4_81",
++        "n4_78"
++      ],
++      "level": null,
++      "state": "locked",
++      "thumb": "quasar-2"
++    },
++    {
++      "id": "n4_81",
++      "nameKey": "map.node.n4_81",
++      "kind": "quasar",
++      "layer": 4,
++      "angle": 1.2121248270858886,
++      "radius": 0.96923258990263,
++      "edges": [
++        "n4_79",
++        "n4_80",
++        "n4_78"
++      ],
++      "level": null,
++      "state": "locked",
++      "thumb": "quasar-3"
++    }
++  ],
++  "filaments": [
++    {
++      "layerId": "spirals",
++      "points": [
++        {
++          "angle": 0.39477242348179203,
++          "radius": 0.25159349328921454
++        },
++        {
++          "angle": 0.39885625063811103,
++          "radius": 0.2581234413919666
++        },
++        {
++          "angle": 0.40015105745446916,
++          "radius": 0.2668846353063046
++        },
++        {
++          "angle": 0.39922282252275054,
++          "radius": 0.27748704405245556
++        },
++        {
++          "angle": 0.3969003143164376,
++          "radius": 0.28954063665064617
++        },
++        {
++          "angle": 0.3942925651474968,
++          "radius": 0.30265538212110354
++        },
++        {
++          "angle": 0.3930673464764777,
++          "radius": 0.3168703011255561
++        },
++        {
++          "angle": 0.3958710534568428,
++          "radius": 0.3346359225947416
++        },
++        {
++          "angle": 0.4012623085433695,
++          "radius": 0.35454709278207597
++        },
++        {
++          "angle": 0.4071179728516788,
++          "radius": 0.3743335753670163
++        },
++        {
++          "angle": 0.4112725507246666,
++          "radius": 0.3917251340290198
++        },
++        {
++          "angle": 0.4114268248936206,
++          "radius": 0.4044515324475437
++        },
++        {
++          "angle": 0.40540752813563047,
++          "radius": 0.4110446488739603
++        },
++        {
++          "angle": 0.39471562710564506,
++          "radius": 0.41287919185655375
++        },
++        {
++          "angle": 0.38273087044420023,
++          "radius": 0.4116701719674839
++        },
++        {
++          "angle": 0.3725811366828983,
++          "radius": 0.40912384429957743
++        },
++        {
++          "angle": 0.3671750436267385,
++          "radius": 0.406946463945661
++        },
++        {
++          "angle": 0.36913929259288336,
++          "radius": 0.4067168168095667
++        },
++        {
++          "angle": 0.37736735518518544,
++          "radius": 0.40743965727965187
++        },
++        {
++          "angle": 0.38876517875816796,
++          "radius": 0.4083552396808623
++        },
++        {
++          "angle": 0.40073078904583914,
++          "radius": 0.4093453596600048
++        },
++        {
++          "angle": 0.4108564028710962,
++          "radius": 0.4102918128638861
++        },
++        {
++          "angle": 0.41697603850298326,
++          "radius": 0.4110763949393132
++        },
++        {
++          "angle": 0.4181395544038405,
++          "radius": 0.4115632851231759
++        },
++        {
++          "angle": 0.4164230431591522,
++          "radius": 0.41173936901816327
++        },
++        {
++          "angle": 0.41272596431161446,
++          "radius": 0.41179318101843343
++        },
++        {
++          "angle": 0.40795256845504146,
++          "radius": 0.41192034390059945
++        },
++        {
++          "angle": 0.403048402027848,
++          "radius": 0.4123164804412742
++        },
++        {
++          "angle": 0.3988903178573394,
++          "radius": 0.4131750211144681
++        },
++        {
++          "angle": 0.3951958110031958,
++          "radius": 0.41449629393974485
++        },
++        {
++          "angle": 0.39228188169727657,
++          "radius": 0.4161488177225568
++        },
++        {
++          "angle": 0.39096209621012373,
++          "radius": 0.41804540424426706
++        },
++        {
++          "angle": 0.39179373324656014,
++          "radius": 0.4200988652862387
++        },
++        {
++          "angle": 0.3950985554587942,
++          "radius": 0.4222220126298348
++        },
++        {
++          "angle": 0.4009610844567491,
++          "radius": 0.42443591333502195
++        },
++        {
++          "angle": 0.4085559823824243,
++          "radius": 0.4270635269187153
++        },
++        {
++          "angle": 0.41641605560626765,
++          "radius": 0.4298812563818898
++        },
++        {
++          "angle": 0.42313009970579674,
++          "radius": 0.43259838053000255
++        },
++        {
++          "angle": 0.427444488332313,
++          "radius": 0.4349241781685111
++        },
++        {
++          "angle": 0.4283305363510532,
++          "radius": 0.4365679281028724
++        }
++      ],
++      "color": "#4da6ff"
++    },
++    {
++      "layerId": "spirals",
++      "points": [
++        {
++          "angle": 0.8349860277513287,
++          "radius": 0.012005421800144401
++        },
++        {
++          "angle": 0.8430702378198042,
++          "radius": 0.022894980336844846
++        },
++        {
++          "angle": 0.8539131928457965,
++          "radius": 0.03854396652107358
++        },
++        {
++          "angle": 0.8611553272139225,
++          "radius": 0.056640994760574985
++        },
++        {
++          "angle": 0.8586998651903971,
++          "radius": 0.07487467946309342
++        },
++        {
++          "angle": 0.8407302948799195,
++          "radius": 0.09093363503637328
++        },
++        {
++          "angle": 0.7999855377327627,
++          "radius": 0.10262887909990194
++        },
++        {
++          "angle": 0.725369397668363,
++          "radius": 0.11008080280929317
++        },
++        {
++          "angle": 0.631174449623671,
++          "radius": 0.11519590921989778
++        },
++        {
++          "angle": 0.5360820579641212,
++          "radius": 0.11989332778883165
++        },
++        {
++          "angle": 0.4587312302824229,
++          "radius": 0.12609218797321056
++        },
++        {
++          "angle": 0.4176272525596766,
++          "radius": 0.13571161923015052
++        },
++        {
++          "angle": 0.4263572795936345,
++          "radius": 0.15073873021781375
++        },
++        {
++          "angle": 0.4754358695419299,
++          "radius": 0.17053264433072324
++        },
++        {
++          "angle": 0.5486083980576001,
++          "radius": 0.192376322761111
++        },
++        {
++          "angle": 0.6293709456123948,
++          "radius": 0.21353500884544058
++        },
++        {
++          "angle": 0.7010003319514614,
++          "radius": 0.2312739459201756
++        },
++        {
++          "angle": 0.7476955518908472,
++          "radius": 0.24288121158419052
++        },
++        {
++          "angle": 0.7762781382375089,
++          "radius": 0.24751682144078127
++        },
++        {
++          "angle": 0.7940949271740128,
++          "radius": 0.24757314103593372
++        },
++        {
++          "angle": 0.8035547177717742,
++          "radius": 0.2457630567262585
++        },
++        {
++          "angle": 0.8072605001910983,
++          "radius": 0.24479945486836618
++        },
++        {
++          "angle": 0.8080570660384369,
++          "radius": 0.24739522181886753
++        },
++        {
++          "angle": 0.8063785341602603,
++          "radius": 0.25515510212840353
++        },
++        {
++          "angle": 0.7979728596887402,
++          "radius": 0.2659993032923044
++        },
++        {
++          "angle": 0.7854920948098927,
++          "radius": 0.2789709078096593
++        },
++        {
++          "angle": 0.77213638774894,
++          "radius": 0.29324212843860165
++        },
++        {
++          "angle": 0.7611471825757052,
++          "radius": 0.3079851779372648
++        },
++        {
++          "angle": 0.7557063963172747,
++          "radius": 0.32241701898850283
++        },
++        {
++          "angle": 0.7572526342483091,
++          "radius": 0.33828191300104404
++        },
++        {
++          "angle": 0.7641575624672282,
++          "radius": 0.35572735496978936
++        },
++        {
++          "angle": 0.7743215708507233,
++          "radius": 0.3732011381736619
++        },
++        {
++          "angle": 0.7853887617097671,
++          "radius": 0.38915105589158533
++        },
++        {
++          "angle": 0.7947677213027171,
++          "radius": 0.4020249014024828
++        },
++        {
++          "angle": 0.7999561959982162,
++          "radius": 0.41048811817052
++        },
++        {
++          "angle": 0.8008831638454796,
++          "radius": 0.41507601835433416
++        },
++        {
++          "angle": 0.7984825315611901,
++          "radius": 0.41693675424073073
++        },
++        {
++          "angle": 0.7937226157710456,
++          "radius": 0.41717745822769564
++        },
++        {
++          "angle": 0.7877293111745278,
++          "radius": 0.4169052627132149
++        },
++        {
++          "angle": 0.7818534536850537,
++          "radius": 0.41722730009527453
++        }
++      ],
++      "color": "#4da6ff"
++    },
++    {
++      "layerId": "spirals",
++      "points": [
++        {
++          "angle": 1.1924235579988411,
++          "radius": 0.1631941750580824
++        },
++        {
++          "angle": 1.1960246966303627,
++          "radius": 0.17197931436132802
++        },
++        {
++          "angle": 1.1966855023822651,
++          "radius": 0.18418547355535664
++        },
++        {
++          "angle": 1.1954072700975318,
++          "radius": 0.19875047114266953
++        },
++        {
++          "angle": 1.1934540845007453,
++          "radius": 0.21461212562576784
++        },
++        {
++          "angle": 1.1923999256622497,
++          "radius": 0.23074931522387487
++        },
++        {
++          "angle": 1.1952627094871404,
++          "radius": 0.24906224025210577
++        },
++        {
++          "angle": 1.2009620427621899,
++          "radius": 0.2695069108789871
++        },
++        {
++          "angle": 1.2064431724685545,
++          "radius": 0.28988205895003943
++        },
++        {
++          "angle": 1.2087055361747294,
++          "radius": 0.30798641631078344
++        },
++        {
++          "angle": 1.2047593791075424,
++          "radius": 0.32169085483545173
++        },
++        {
++          "angle": 1.1944220970413582,
++          "radius": 0.33119970737003307
++        },
++        {
++          "angle": 1.1811355246828394,
++          "radius": 0.3378094169018625
++        },
++        {
++          "angle": 1.168260629497201,
++          "radius": 0.3424618334926292
++        },
++        {
++          "angle": 1.1588799879951666,
++          "radius": 0.34609880720402214
++        },
++        {
++          "angle": 1.1555009765593118,
++          "radius": 0.3494008702542113
++        },
++        {
++          "angle": 1.1562485900208959,
++          "radius": 0.35071825515282073
++        },
++        {
++          "angle": 1.1590655157690433,
++          "radius": 0.35067548336652243
++        },
++        {
++          "angle": 1.1624431021857697,
++          "radius": 0.35065141011745243
++        },
++        {
++          "angle": 1.164905878510284,
++          "radius": 0.3520248906277466
++        },
++        {
++          "angle": 1.1651880047201115,
++          "radius": 0.35615972558540154
++        },
++        {
++          "angle": 1.1630943787519596,
++          "radius": 0.36322308332801917
++        },
++        {
++          "angle": 1.1589120535594273,
++          "radius": 0.3717130675843665
++        },
++        {
++          "angle": 1.1531476200469708,
++          "radius": 0.3800182410973835
++        },
++        {
++          "angle": 1.1465511655981353,
++          "radius": 0.38652716661001035
++        },
++        {
++          "angle": 1.139955249936107,
++          "radius": 0.38987501220618975
++        },
++        {
++          "angle": 1.1337547958818586,
++          "radius": 0.3906123179683435
++        },
++        {
++          "angle": 1.1284769410144326,
++          "radius": 0.38995623504437193
++        },
++        {
++          "angle": 1.124627366269534,
++          "radius": 0.3891008921109873
++        },
++        {
++          "angle": 1.122577215630244,
++          "radius": 0.38924041784490165
++        },
++        {
++          "angle": 1.1258133656014817,
++          "radius": 0.39102270446520676
++        },
++        {
++          "angle": 1.138154094257799,
++          "radius": 0.3935869506542725
++        },
++        {
++          "angle": 1.1514607406431705,
++          "radius": 0.3966712838752979
++        },
++        {
++          "angle": 1.1569043993876074,
++          "radius": 0.4000598370757039
++        },
++        {
++          "angle": 1.1454713542958637,
++          "radius": 0.40353674320291166
++        },
++        {
++          "angle": 1.1058686298582374,
++          "radius": 0.4073580992154236
++        },
++        {
++          "angle": 1.0399799458131809,
++          "radius": 0.4118258385053001
++        },
++        {
++          "angle": 0.9633386355805837,
++          "radius": 0.41633627542404444
++        },
++        {
++          "angle": 0.8917442370918299,
++          "radius": 0.4202750546747637
++        },
++        {
++          "angle": 0.841221229492241,
++          "radius": 0.4230278209605648
++        }
++      ],
++      "color": "#4da6ff"
++    },
++    {
++      "layerId": "ellipticals",
++      "points": [
++        {
++          "angle": 0.4325116097112943,
++          "radius": 0.44192729167351746
++        },
++        {
++          "angle": 0.43924919566148113,
++          "radius": 0.44734602027634
++        },
++        {
++          "angle": 0.44526461175508086,
++          "radius": 0.45494958269849917
++        },
++        {
++          "angle": 0.4495585925706867,
++          "radius": 0.46402784233690375
++        },
++        {
++          "angle": 0.45139466256848937,
++          "radius": 0.4738706625884626
++        },
++        {
++          "angle": 0.4503166100471646,
++          "radius": 0.48376790685008453
++        },
++        {
++          "angle": 0.4461327646234883,
++          "radius": 0.4930094385186784
++        },
++        {
++          "angle": 0.4388688409034052,
++          "radius": 0.5008851209911529
++        },
++        {
++          "angle": 0.42868828707971757,
++          "radius": 0.5066789319772126
++        },
++        {
++          "angle": 0.4159342770178659,
++          "radius": 0.509864222483037
++        },
++        {
++          "angle": 0.4019398801034613,
++          "radius": 0.5110426251452737
++        },
++        {
++          "angle": 0.3881606866462914,
++          "radius": 0.5110778170567378
++        },
++        {
++          "angle": 0.3758433041070428,
++          "radius": 0.5108334753102448
++        },
++        {
++          "angle": 0.36597516170598854,
++          "radius": 0.5111732769986101
++        },
++        {
++          "angle": 0.3592652977089106,
++          "radius": 0.5129608992146489
++        },
++        {
++          "angle": 0.35615828562199164,
++          "radius": 0.5170600190511766
++        },
++        {
++          "angle": 0.3566645869830696,
++          "radius": 0.5243756829262222
++        },
++        {
++          "angle": 0.3586884373651738,
++          "radius": 0.5354909811234161
++        },
++        {
++          "angle": 0.36122946887458796,
++          "radius": 0.5494541271763816
++        },
++        {
++          "angle": 0.36376987895215185,
++          "radius": 0.5650984316450369
++        },
++        {
++          "angle": 0.36591359600269857,
++          "radius": 0.5812572050893003
++        },
++        {
++          "angle": 0.3674587395199498,
++          "radius": 0.5967637580690904
++        },
++        {
++          "angle": 0.36844523044377475,
++          "radius": 0.6104514011443253
++        },
++        {
++          "angle": 0.3691718665504842,
++          "radius": 0.6211534448749232
++        },
++        {
++          "angle": 0.3705623145443485,
++          "radius": 0.6280303474777483
++        },
++        {
++          "angle": 0.3743459622953248,
++          "radius": 0.632015790654453
++        },
++        {
++          "angle": 0.38024001589315987,
++          "radius": 0.6338118103774527
++        },
++        {
++          "angle": 0.3877973219216515,
++          "radius": 0.6340222580839138
++        },
++        {
++          "angle": 0.39652092557285906,
++          "radius": 0.633250985211002
++        },
++        {
++          "angle": 0.40577933508621805,
++          "radius": 0.6321018431958835
++        },
++        {
++          "angle": 0.41473872408643936,
++          "radius": 0.6311786834757244
++        },
++        {
++          "angle": 0.42232056164422643,
++          "radius": 0.6310853574876909
++        },
++        {
++          "angle": 0.4276130949471625,
++          "radius": 0.6318953344293354
++        },
++        {
++          "angle": 0.43098153384878424,
++          "radius": 0.6327754403088152
++        },
++        {
++          "angle": 0.4326525170898863,
++          "radius": 0.6336652209213312
++        },
++        {
++          "angle": 0.4327290754176976,
++          "radius": 0.6345331350007043
++        },
++        {
++          "angle": 0.4312932176643758,
++          "radius": 0.6353476412807556
++        },
++        {
++          "angle": 0.428499029094761,
++          "radius": 0.6360771984953065
++        },
++        {
++          "angle": 0.42465817304747755,
++          "radius": 0.6366902653781781
++        },
++        {
++          "angle": 0.4203072540750846,
++          "radius": 0.6371553006631914
++        }
++      ],
++      "color": "#ffd666"
++    },
++    {
++      "layerId": "ellipticals",
++      "points": [
++        {
++          "angle": 0.7920446751566592,
++          "radius": 0.4721920865049275
++        },
++        {
++          "angle": 0.7957247575692612,
++          "radius": 0.4761234097448977
++        },
++        {
++          "angle": 0.7968435081881754,
++          "radius": 0.4816073075055704
++        },
++        {
++          "angle": 0.7952540558897923,
++          "radius": 0.4881528083448822
++        },
++        {
++          "angle": 0.7910723194321011,
++          "radius": 0.49526894082076983
++        },
++        {
++          "angle": 0.7846944814115748,
++          "radius": 0.5024647334911702
++        },
++        {
++          "angle": 0.776781265742787,
++          "radius": 0.5092492149140198
++        },
++        {
++          "angle": 0.7682107813294806,
++          "radius": 0.5151314136472553
++        },
++        {
++          "angle": 0.7600145069963273,
++          "radius": 0.5196339809262983
++        },
++        {
++          "angle": 0.7534100267365348,
++          "radius": 0.5228928332305113
++        },
++        {
++          "angle": 0.748994270355011,
++          "radius": 0.5252950592251704
++        },
++        {
++          "angle": 0.7470169591492779,
++          "radius": 0.5270886023199833
++        },
++        {
++          "angle": 0.7475188315677563,
++          "radius": 0.5285214059246572
++        },
++        {
++          "angle": 0.7502814478184539,
++          "radius": 0.5298414134488997
++        },
++        {
++          "angle": 0.7548079771548862,
++          "radius": 0.531296568302418
++        },
++        {
++          "angle": 0.7603371240709711,
++          "radius": 0.5331348138949196
++        },
++        {
++          "angle": 0.7663125679381342,
++          "radius": 0.5355437099921735
++        },
++        {
++          "angle": 0.7751167008878876,
++          "radius": 0.5381418648139957
++        },
++        {
++          "angle": 0.7853265086984341,
++          "radius": 0.5408376668535124
++        },
++        {
++          "angle": 0.7945218062675102,
++          "radius": 0.5436623662037082
++        },
++        {
++          "angle": 0.8004041394568447,
++          "radius": 0.5466472129575675
++        },
++        {
++          "angle": 0.8008692452170563,
++          "radius": 0.5498234572080742
++        },
++        {
++          "angle": 0.7940546619449099,
++          "radius": 0.5532223490482133
++        },
++        {
++          "angle": 0.7783568048736131,
++          "radius": 0.5568751385709687
++        },
++        {
++          "angle": 0.7505510399114869,
++          "radius": 0.5608775662135224
++        },
++        {
++          "angle": 0.7052079907416505,
++          "radius": 0.5654334258974915
++        },
++        {
++          "angle": 0.6482164563435244,
++          "radius": 0.5703914247984716
++        },
++        {
++          "angle": 0.5865476144457437,
++          "radius": 0.5755658212704869
++        },
++        {
++          "angle": 0.5271228413852068,
++          "radius": 0.5807708736675617
++        },
++        {
++          "angle": 0.4767289765461876,
++          "radius": 0.5858208403437202
++        },
++        {
++          "angle": 0.441950524698235,
++          "radius": 0.5905299796529868
++        },
++        {
++          "angle": 0.4291272860568909,
++          "radius": 0.5947125499493855
++        },
++        {
++          "angle": 0.4435391720778789,
++          "radius": 0.5983750217030119
++        },
++        {
++          "angle": 0.4823994346834094,
++          "radius": 0.6018126070127287
++        },
++        {
++          "angle": 0.5384862164891545,
++          "radius": 0.6050070456634038
++        },
++        {
++          "angle": 0.6044314559742611,
++          "radius": 0.6079291075932121
++        },
++        {
++          "angle": 0.6728460697028064,
++          "radius": 0.6105495627403285
++        },
++        {
++          "angle": 0.7364130506715483,
++          "radius": 0.6128391810429276
++        },
++        {
++          "angle": 0.7879729699510301,
++          "radius": 0.6147687324391845
++        },
++        {
++          "angle": 0.8205913398257301,
++          "radius": 0.6163089868672741
++        }
++      ],
++      "color": "#ffd666"
++    },
++    {
++      "layerId": "ellipticals",
++      "points": [
++        {
++          "angle": 1.2420911804235906,
++          "radius": 0.44923105768229304
++        },
++        {
++          "angle": 1.1907685400146797,
++          "radius": 0.4516950310695168
++        },
++        {
++          "angle": 1.1083854673770275,
++          "radius": 0.4547767090330746
++        },
++        {
++          "angle": 1.013754104050174,
++          "radius": 0.4586875246112199
++        },
++        {
++          "angle": 0.9259493814552576,
++          "radius": 0.46363891084220643
++        },
++        {
++          "angle": 0.8643264948519004,
++          "radius": 0.4698423007642877
++        },
++        {
++          "angle": 0.8478989981410725,
++          "radius": 0.47762179708978947
++        },
++        {
++          "angle": 0.8787549108898118,
++          "radius": 0.48770346896816275
++        },
++        {
++          "angle": 0.9401243049338612,
++          "radius": 0.49938916350778617
++        },
++        {
++          "angle": 1.0143159348754944,
++          "radius": 0.511716547752795
++        },
++        {
++          "angle": 1.0835961985442606,
++          "radius": 0.523723288747324
++        },
++        {
++          "angle": 1.1300977721580998,
++          "radius": 0.5344470535355085
++        },
++        {
++          "angle": 1.1464756324670478,
++          "radius": 0.5437994778685019
++        },
++        {
++          "angle": 1.1470782971168505,
++          "radius": 0.5527363409573419
++        },
++        {
++          "angle": 1.1387297958652636,
++          "radius": 0.561077608522598
++        },
++        {
++          "angle": 1.1277774039196713,
++          "radius": 0.5686215564813214
++        },
++        {
++          "angle": 1.1203491357608562,
++          "radius": 0.5751664607505635
++        },
++        {
++          "angle": 1.1219376561012475,
++          "radius": 0.5804990094153311
++        },
++        {
++          "angle": 1.1280432980496893,
++          "radius": 0.5843791446295498
++        },
++        {
++          "angle": 1.1348694453983668,
++          "radius": 0.5870692449694151
++        },
++        {
++          "angle": 1.1411613173709818,
++          "radius": 0.5889539760291903
++        },
++        {
++          "angle": 1.145858324280124,
++          "radius": 0.5904180034031384
++        },
++        {
++          "angle": 1.1481416778845301,
++          "radius": 0.5918459926855224
++        },
++        {
++          "angle": 1.1472955278206234,
++          "radius": 0.5933636568472244
++        },
++        {
++          "angle": 1.143477547752208,
++          "radius": 0.5945158103011003
++        },
++        {
++          "angle": 1.1383656278280947,
++          "radius": 0.5953936642574084
++        },
++        {
++          "angle": 1.1338151246737025,
++          "radius": 0.5961263861811232
++        },
++        {
++          "angle": 1.1317226907590505,
++          "radius": 0.5968431435372197
++        },
++        {
++          "angle": 1.1340761416652,
++          "radius": 0.5976707935868008
++        },
++        {
++          "angle": 1.1489857279100677,
++          "radius": 0.598567101371837
++        },
++        {
++          "angle": 1.1741637799242477,
++          "radius": 0.5994551945710365
++        },
++        {
++          "angle": 1.2007651962032637,
++          "radius": 0.6003242232099049
++        },
++        {
++          "angle": 1.2196885876769208,
++          "radius": 0.6011633373139482
++        },
++        {
++          "angle": 1.2215970492224095,
++          "radius": 0.6019616869086717
++        },
++        {
++          "angle": 1.196042559569397,
++          "radius": 0.6027238682767098
++        },
++        {
++          "angle": 1.138734735360887,
++          "radius": 0.6034960941370686
++        },
++        {
++          "angle": 1.062035442027815,
++          "radius": 0.6042446154846859
++        },
++        {
++          "angle": 0.9796113294259,
++          "radius": 0.6049259972932797
++        },
++        {
++          "angle": 0.9052866254846429,
++          "radius": 0.6054968045365673
++        },
++        {
++          "angle": 0.8531104993474814,
++          "radius": 0.605913602188267
++        }
++      ],
++      "color": "#ffd666"
++    },
++    {
++      "layerId": "ellipticalsZ",
++      "points": [
++        {
++          "angle": 0.406951081186398,
++          "radius": 0.6745108584572762
++        },
++        {
++          "angle": 0.41160933586128867,
++          "radius": 0.6788440806972619
++        },
++        {
++          "angle": 0.4140522256189847,
++          "radius": 0.684786399672241
++        },
++        {
++          "angle": 0.41399485033199385,
++          "radius": 0.6919320322478182
++        },
++        {
++          "angle": 0.4114150997544219,
++          "radius": 0.6998751952895974
++        },
++        {
++          "angle": 0.4065711274788594,
++          "radius": 0.7082101056631828
++        },
++        {
++          "angle": 0.399985628415997,
++          "radius": 0.7165309802341787
++        },
++        {
++          "angle": 0.39239868246569426,
++          "radius": 0.7244320358681895
++        },
++        {
++          "angle": 0.38469473562378903,
++          "radius": 0.7315074894308191
++        },
++        {
++          "angle": 0.37781242447345803,
++          "radius": 0.7373515577876717
++        },
++        {
++          "angle": 0.3726742007384978,
++          "radius": 0.7415795162814868
++        },
++        {
++          "angle": 0.3705000947599615,
++          "radius": 0.7444103583328385
++        },
++        {
++          "angle": 0.37166751047688323,
++          "radius": 0.7461898125033783
++        },
++        {
++          "angle": 0.3760165347852792,
++          "radius": 0.7471322174814206
++        },
++        {
++          "angle": 0.38310886362667446,
++          "radius": 0.7474519119552797
++        },
++        {
++          "angle": 0.3922417281829949,
++          "radius": 0.7473632346132699
++        },
++        {
++          "angle": 0.40249309890956364,
++          "radius": 0.7470805241437058
++        },
++        {
++          "angle": 0.4127925219313953,
++          "radius": 0.7468181192349016
++        },
++        {
++          "angle": 0.422008851783784,
++          "radius": 0.7467903585751717
++        },
++        {
++          "angle": 0.42904412385921464,
++          "radius": 0.7472115808528307
++        },
++        {
++          "angle": 0.432917179303138,
++          "radius": 0.748212037030576
++        },
++        {
++          "angle": 0.4331072544655234,
++          "radius": 0.7494139111048866
++        },
++        {
++          "angle": 0.4298124156854837,
++          "radius": 0.7507235149521155
++        },
++        {
++          "angle": 0.42352684581301964,
++          "radius": 0.752121511692217
++        },
++        {
++          "angle": 0.41498822417722164,
++          "radius": 0.7535885644451457
++        },
++        {
++          "angle": 0.40513196295988557,
++          "radius": 0.7551053363308561
++        },
++        {
++          "angle": 0.3950208661383555,
++          "radius": 0.7566524904693026
++        },
++        {
++          "angle": 0.385759033534576,
++          "radius": 0.7582106899804401
++        },
++        {
++          "angle": 0.3784007635787534,
++          "radius": 0.7597605979842225
++        },
++        {
++          "angle": 0.3738658177484702,
++          "radius": 0.7612828776006049
++        },
++        {
++          "angle": 0.3726077262043828,
++          "radius": 0.7628211938949638
++        },
++        {
++          "angle": 0.3741562362373082,
++          "radius": 0.7644934871641156
++        },
++        {
++          "angle": 0.3781209107735407,
++          "radius": 0.7662549897244072
++        },
++        {
++          "angle": 0.38389903906928646,
++          "radius": 0.7680535922968726
++        },
++        {
++          "angle": 0.39070309955549193,
++          "radius": 0.7698371856025457
++        },
++        {
++          "angle": 0.3976352811706167,
++          "radius": 0.7715536603624604
++        },
++        {
++          "angle": 0.403776750938049,
++          "radius": 0.7731509072976502
++        },
++        {
++          "angle": 0.4082807523138594,
++          "radius": 0.7745768171291496
++        },
++        {
++          "angle": 0.41045810682790285,
++          "radius": 0.775779280577992
++        },
++        {
++          "angle": 0.40984457722396916,
++          "radius": 0.7767061883652113
++        }
++      ],
++      "color": "#ff8844"
++    },
++    {
++      "layerId": "ellipticalsZ",
++      "points": [
++        {
++          "angle": 0.7713580125214404,
++          "radius": 0.6218097042347429
++        },
++        {
++          "angle": 0.7812974056708177,
++          "radius": 0.6253796747764243
++        },
++        {
++          "angle": 0.7913805350250663,
++          "radius": 0.6300733867134333
++        },
++        {
++          "angle": 0.8006268032133688,
++          "radius": 0.6356585840340286
++        },
++        {
++          "angle": 0.8083184027465051,
++          "radius": 0.6419030107264696
++        },
++        {
++          "angle": 0.8140177899737402,
++          "radius": 0.6485744107790149
++        },
++        {
++          "angle": 0.8175519625624392,
++          "radius": 0.6554405281799237
++        },
++        {
++          "angle": 0.8189653031691362,
++          "radius": 0.6622691069174548
++        },
++        {
++          "angle": 0.8184465605463432,
++          "radius": 0.6688278909798671
++        },
++        {
++          "angle": 0.8162386740339117,
++          "radius": 0.6748846243554197
++        },
++        {
++          "angle": 0.8125817512210041,
++          "radius": 0.68023892371187
++        },
++        {
++          "angle": 0.8086306314751411,
++          "radius": 0.6854000065203595
++        },
++        {
++          "angle": 0.8053590472877007,
++          "radius": 0.6905626262626459
++        },
++        {
++          "angle": 0.8032044617651047,
++          "radius": 0.6956491811372064
++        },
++        {
++          "angle": 0.8023259470592832,
++          "radius": 0.7005820693425188
++        },
++        {
++          "angle": 0.8026181105625678,
++          "radius": 0.7052836890770606
++        },
++        {
++          "angle": 0.8037562989406872,
++          "radius": 0.709676438539309
++        },
++        {
++          "angle": 0.8052674345290614,
++          "radius": 0.7136827159277419
++        },
++        {
++          "angle": 0.8066177480733899,
++          "radius": 0.7172249194408366
++        },
++        {
++          "angle": 0.8073066511765634,
++          "radius": 0.7202254472770707
++        },
++        {
++          "angle": 0.8066729619983307,
++          "radius": 0.7225705433566127
++        },
++        {
++          "angle": 0.802926549730677,
++          "radius": 0.7240622047138624
++        },
++        {
++          "angle": 0.7960683456814485,
++          "radius": 0.7248333490059669
++        },
++        {
++          "angle": 0.7866503137330703,
++          "radius": 0.7250637731134685
++        },
++        {
++          "angle": 0.7754679142470575,
++          "radius": 0.7249332739169093
++        },
++        {
++          "angle": 0.763514340437631,
++          "radius": 0.7246216482968315
++        },
++        {
++          "angle": 0.7519101773145592,
++          "radius": 0.7243086931337773
++        },
++        {
++          "angle": 0.7418173057322115,
++          "radius": 0.7241742053082889
++        },
++        {
++          "angle": 0.7343478051532185,
++          "radius": 0.7243979817009084
++        },
++        {
++          "angle": 0.730479218087588,
++          "radius": 0.7251598191921779
++        },
++        {
++          "angle": 0.7309580038706771,
++          "radius": 0.7265659996368765
++        },
++        {
++          "angle": 0.7357403470807171,
++          "radius": 0.7284622507022307
++        },
++        {
++          "angle": 0.7441200400656067,
++          "radius": 0.7307209202669648
++        },
++        {
++          "angle": 0.7551482667825056,
++          "radius": 0.7332193742232028
++        },
++        {
++          "angle": 0.767691400363315,
++          "radius": 0.7358349784630683
++        },
++        {
++          "angle": 0.7805055244474483,
++          "radius": 0.7384450988786856
++        },
++        {
++          "angle": 0.7923257007592475,
++          "radius": 0.7409271013621785
++        },
++        {
++          "angle": 0.8019590674557378,
++          "radius": 0.7431583518056709
++        },
++        {
++          "angle": 0.808370340767728,
++          "radius": 0.7450162161012868
++        },
++        {
++          "angle": 0.8107491781399621,
++          "radius": 0.74637806014115
++        }
++      ],
++      "color": "#ff8844"
++    },
++    {
++      "layerId": "ellipticalsZ",
++      "points": [
++        {
++          "angle": 1.2147378473066726,
++          "radius": 0.6676188716012941
++        },
++        {
++          "angle": 1.2197967050451515,
++          "radius": 0.6684500581656913
++        },
++        {
++          "angle": 1.2232683949267007,
++          "radius": 0.6693387137335449
++        },
++        {
++          "angle": 1.2245882011636993,
++          "radius": 0.6703339469281641
++        },
++        {
++          "angle": 1.223454197850122,
++          "radius": 0.671484866372858
++        },
++        {
++          "angle": 1.2198447229184306,
++          "radius": 0.6728405806909356
++        },
++        {
++          "angle": 1.214002655619186,
++          "radius": 0.6744501985057061
++        },
++        {
++          "angle": 1.2063882601921174,
++          "radius": 0.6763628284404785
++        },
++        {
++          "angle": 1.1976061669729332,
++          "radius": 0.678627579118562
++        },
++        {
++          "angle": 1.1883151968846806,
++          "radius": 0.6812935591632657
++        },
++        {
++          "angle": 1.17911851125714,
++          "radius": 0.6844227665314223
++        },
++        {
++          "angle": 1.1703413340200832,
++          "radius": 0.6882877053874524
++        },
++        {
++          "angle": 1.1626079986597497,
++          "radius": 0.6928440974648943
++        },
++        {
++          "angle": 1.1564520374462992,
++          "radius": 0.6979099993688702
++        },
++        {
++          "angle": 1.1521285916953998,
++          "radius": 0.7033034677045027
++        },
++        {
++          "angle": 1.1496283379631203,
++          "radius": 0.7088425590769141
++        },
++        {
++          "angle": 1.1487226920789273,
++          "radius": 0.7143453300912268
++        },
++        {
++          "angle": 1.1490346455419789,
++          "radius": 0.7196298373525635
++        },
++        {
++          "angle": 1.1501264982617123,
++          "radius": 0.7245141374660463
++        },
++        {
++          "angle": 1.151593731004755,
++          "radius": 0.7288162870367978
++        },
++        {
++          "angle": 1.152980605651541,
++          "radius": 0.7324060503368691
++        },
++        {
++          "angle": 1.1530669428430043,
++          "radius": 0.7355052534402721
++        },
++        {
++          "angle": 1.1515930735744722,
++          "radius": 0.7382226650355346
++        },
++        {
++          "angle": 1.1487207240748527,
++          "radius": 0.7406257376406254
++        },
++        {
++          "angle": 1.1448551170521435,
++          "radius": 0.7427819237735128
++        },
++        {
++          "angle": 1.1405992080670468,
++          "radius": 0.7447586759521648
++        },
++        {
++          "angle": 1.1366833444758146,
++          "radius": 0.7466234466945503
++        },
++        {
++          "angle": 1.133879169479298,
++          "radius": 0.7484436885186371
++        },
++        {
++          "angle": 1.1329085248866106,
++          "radius": 0.7502868539423939
++        },
++        {
++          "angle": 1.134358715554242,
++          "radius": 0.7522203954837888
++        },
++        {
++          "angle": 1.1389261602524443,
++          "radius": 0.7542824200189941
++        },
++        {
++          "angle": 1.1472341654550655,
++          "radius": 0.756411802649758
++        },
++        {
++          "angle": 1.158661796416716,
++          "radius": 0.7585625282388077
++        },
++        {
++          "angle": 1.1723123178077635,
++          "radius": 0.7606906822017538
++        },
++        {
++          "angle": 1.187104183473317,
++          "radius": 0.7627523499542066
++        },
++        {
++          "angle": 1.2018455577659986,
++          "radius": 0.7647036169117766
++        },
++        {
++          "angle": 1.215323583123358,
++          "radius": 0.7665005684900745
++        },
++        {
++          "angle": 1.2263974784156286,
++          "radius": 0.7680992901047105
++        },
++        {
++          "angle": 1.2340840405868276,
++          "radius": 0.769455867171295
++        },
++        {
++          "angle": 1.2376250077949067,
++          "radius": 0.7705263851054387
++        }
++      ],
++      "color": "#ff8844"
++    },
++    {
++      "layerId": "quasars",
++      "points": [
++        {
++          "angle": 0.45826180626005375,
++          "radius": 0.8350149001947793
++        },
++        {
++          "angle": 0.46154979999308,
++          "radius": 0.8350597945014955
++        },
++        {
++          "angle": 0.4625514119295303,
++          "radius": 0.8350417762971105
++        },
++        {
++          "angle": 0.46090741433121185,
++          "radius": 0.8349835931699567
++        },
++        {
++          "angle": 0.4565213693415301,
++          "radius": 0.8349079927083667
++        },
++        {
++          "angle": 0.44957710294237463,
++          "radius": 0.8348377225006723
++        },
++        {
++          "angle": 0.4405229824337364,
++          "radius": 0.8347955301352066
++        },
++        {
++          "angle": 0.4300247601047739,
++          "radius": 0.8348041632003017
++        },
++        {
++          "angle": 0.4188925543406249,
++          "radius": 0.8348863692842899
++        },
++        {
++          "angle": 0.4079906741137654,
++          "radius": 0.835064895975504
++        },
++        {
++          "angle": 0.3981410716239466,
++          "radius": 0.8353624908622761
++        },
++        {
++          "angle": 0.3900319774593108,
++          "radius": 0.8358019015329388
++        },
++        {
++          "angle": 0.3841426393588995,
++          "radius": 0.8364058755758244
++        },
++        {
++          "angle": 0.38069312682134065,
++          "radius": 0.8371971605792653
++        },
++        {
++          "angle": 0.3792385687914728,
++          "radius": 0.8381631637134392
++        },
++        {
++          "angle": 0.3791722530293628,
++          "radius": 0.8392702146603177
++        },
++        {
++          "angle": 0.38010606795518653,
++          "radius": 0.8405094447759233
++        },
++        {
++          "angle": 0.38150347765881154,
++          "radius": 0.8418719854162792
++        },
++        {
++          "angle": 0.38276725464038486,
++          "radius": 0.843348967937408
++        },
++        {
++          "angle": 0.38333335225724424,
++          "radius": 0.8449315236953328
++        },
++        {
++          "angle": 0.3827594548307206,
++          "radius": 0.846610784046076
++        },
++        {
++          "angle": 0.38079743777103353,
++          "radius": 0.8483778803456612
++        },
++        {
++          "angle": 0.37744097793455,
++          "radius": 0.8502239439501105
++        },
++        {
++          "angle": 0.3729426290140791,
++          "radius": 0.8521401062154473
++        },
++        {
++          "angle": 0.36779844118151905,
++          "radius": 0.8541174984976942
++        },
++        {
++          "angle": 0.36270219746147414,
++          "radius": 0.8561472521528742
++        },
++        {
++          "angle": 0.35847507267409656,
++          "radius": 0.8582204985370101
++        },
++        {
++          "angle": 0.3560413652176395,
++          "radius": 0.8604739124474519
++        },
++        {
++          "angle": 0.3560063854837199,
++          "radius": 0.86300846446463
++        },
++        {
++          "angle": 0.35864448587038106,
++          "radius": 0.8657617296191873
++        },
++        {
++          "angle": 0.3640276841609411,
++          "radius": 0.8686712829417668
++        },
++        {
++          "angle": 0.3719832935847115,
++          "radius": 0.8716746994630117
++        },
++        {
++          "angle": 0.38208233980528405,
++          "radius": 0.874709554213565
++        },
++        {
++          "angle": 0.39366033243363663,
++          "radius": 0.8777134222240698
++        },
++        {
++          "angle": 0.4058679702554876,
++          "radius": 0.880623878525169
++        },
++        {
++          "angle": 0.4177456625640685,
++          "radius": 0.8833784981475057
++        },
++        {
++          "angle": 0.42831279673753886,
++          "radius": 0.8859148561217228
++        },
++        {
++          "angle": 0.4366608365867414,
++          "radius": 0.8881705274784636
++        },
++        {
++          "angle": 0.4420388239963028,
++          "radius": 0.8900830872483712
++        },
++        {
++          "angle": 0.44392074206478455,
++          "radius": 0.8915901104620882
++        }
++      ],
++      "color": "#66ccff"
++    },
++    {
++      "layerId": "quasars",
++      "points": [
++        {
++          "angle": 0.7929264780532321,
++          "radius": 0.7766284712433922
++        },
++        {
++          "angle": 0.7984397463781845,
++          "radius": 0.7766930527281326
++        },
++        {
++          "angle": 0.8023411795202627,
++          "radius": 0.7766880711598158
++        },
++        {
++          "angle": 0.8041545238801501,
++          "radius": 0.7766393791723232
++        },
++        {
++          "angle": 0.8036663157401273,
++          "radius": 0.7765728293995364
++        },
++        {
++          "angle": 0.8009433552209595,
++          "radius": 0.7765142744753374
++        },
++        {
++          "angle": 0.7963169837615128,
++          "radius": 0.7764895670336076
++        },
++        {
++          "angle": 0.790335927789822,
++          "radius": 0.7765245597082289
++        },
++        {
++          "angle": 0.7836932798298999,
++          "radius": 0.7766451051330825
++        },
++        {
++          "angle": 0.7771363229930983,
++          "radius": 0.7768770559420504
++        },
++        {
++          "angle": 0.7713699836180438,
++          "radius": 0.777246264769014
++        },
++        {
++          "angle": 0.7669654664317543,
++          "radius": 0.7777785842478555
++        },
++        {
++          "angle": 0.7642849933121469,
++          "radius": 0.778499867012456
++        },
++        {
++          "angle": 0.7634316078967252,
++          "radius": 0.7794359656966976
++        },
++        {
++          "angle": 0.7641171112202501,
++          "radius": 0.7805090065691961
++        },
++        {
++          "angle": 0.7659692678373199,
++          "radius": 0.7816383486602717
++        },
++        {
++          "angle": 0.7685996473638989,
++          "radius": 0.7828456937463619
++        },
++        {
++          "angle": 0.7714713950856427,
++          "radius": 0.7841527436039042
++        },
++        {
++          "angle": 0.7739869646984865,
++          "radius": 0.7855812000093361
++        },
++        {
++          "angle": 0.7755819907555567,
++          "radius": 0.7871527647390948
++        },
++        {
++          "angle": 0.7758138387739721,
++          "radius": 0.788889139569618
++        },
++        {
++          "angle": 0.7744340653597409,
++          "radius": 0.790812026277343
++        },
++        {
++          "angle": 0.7714360285650181,
++          "radius": 0.7929431266387075
++        },
++        {
++          "angle": 0.7670719632784009,
++          "radius": 0.7953041424301488
++        },
++        {
++          "angle": 0.7618376008675763,
++          "radius": 0.7979167754281042
++        },
++        {
++          "angle": 0.7564264055529364,
++          "radius": 0.8008027274090115
++        },
++        {
++          "angle": 0.7516592333504215,
++          "radius": 0.8039837001493079
++        },
++        {
++          "angle": 0.7482825350268889,
++          "radius": 0.8077033498897439
++        },
++        {
++          "angle": 0.7467834101132595,
++          "radius": 0.812100001039223
++        },
++        {
++          "angle": 0.7475253473594162,
++          "radius": 0.8170373576264113
++        },
++        {
++          "angle": 0.7506695009005165,
++          "radius": 0.8223791236799753
++        },
++        {
++          "angle": 0.7561323203177108,
++          "radius": 0.8279890032285815
++        },
++        {
++          "angle": 0.7635739676264308,
++          "radius": 0.8337307003008964
++        },
++        {
++          "angle": 0.7724190887894934,
++          "radius": 0.8394679189255861
++        },
++        {
++          "angle": 0.7819075189444565,
++          "radius": 0.8450643631313176
++        },
++        {
++          "angle": 0.7911688037363911,
++          "radius": 0.850383736946757
++        },
++        {
++          "angle": 0.7993114668952962,
++          "radius": 0.8552897444005704
++        },
++        {
++          "angle": 0.8055161085838536,
++          "radius": 0.8596460895214247
++        },
++        {
++          "angle": 0.8091209070385295,
++          "radius": 0.8633164763379864
++        },
++        {
++          "angle": 0.8096889817097248,
++          "radius": 0.8661646088789214
++        }
++      ],
++      "color": "#66ccff"
++    },
++    {
++      "layerId": "quasars",
++      "points": [
++        {
++          "angle": 1.158263156879418,
++          "radius": 0.7748769263802336
++        },
++        {
++          "angle": 1.1658179845124002,
++          "radius": 0.7781684085076112
++        },
++        {
++          "angle": 1.1724311450258664,
++          "radius": 0.7824772553112489
++        },
++        {
++          "angle": 1.1775021840172737,
++          "radius": 0.7876239322314699
++        },
++        {
++          "angle": 1.180693436965678,
++          "radius": 0.7934289047085968
++        },
++        {
++          "angle": 1.1819475031886189,
++          "radius": 0.7997126381829528
++        },
++        {
++          "angle": 1.1814715233217379,
++          "radius": 0.8062955980948607
++        },
++        {
++          "angle": 1.179690022989843,
++          "radius": 0.8129982498846436
++        },
++        {
++          "angle": 1.1771718939137223,
++          "radius": 0.8196410589926244
++        },
++        {
++          "angle": 1.1745402184015026,
++          "radius": 0.8260444908591258
++        },
++        {
++          "angle": 1.1723757219885842,
++          "radius": 0.8320290109244708
++        },
++        {
++          "angle": 1.1711254085987612,
++          "radius": 0.8374150846289825
++        },
++        {
++          "angle": 1.1710272993067237,
++          "radius": 0.8420231774129837
++        },
++        {
++          "angle": 1.1720602369467503,
++          "radius": 0.8456737547167976
++        },
++        {
++          "angle": 1.1738981665008241,
++          "radius": 0.8484178235410745
++        },
++        {
++          "angle": 1.1762816160474967,
++          "radius": 0.850488871397001
++        },
++        {
++          "angle": 1.1789238837646052,
++          "radius": 0.8519810844907028
++        },
++        {
++          "angle": 1.1813898434996777,
++          "radius": 0.8529886490283061
++        },
++        {
++          "angle": 1.1831836775105227,
++          "radius": 0.8536057512159367
++        },
++        {
++          "angle": 1.183842748912139,
++          "radius": 0.8539265772597208
++        },
++        {
++          "angle": 1.1830261517835188,
++          "radius": 0.8540453133657839
++        },
++        {
++          "angle": 1.1805871712925426,
++          "radius": 0.8540561457402526
++        },
++        {
++          "angle": 1.1766208940532386,
++          "radius": 0.8540532605892525
++        },
++        {
++          "angle": 1.1714812835160762,
++          "radius": 0.8541308441189096
++        },
++        {
++          "angle": 1.1657657996106157,
++          "radius": 0.8543830825353499
++        },
++        {
++          "angle": 1.160269635119122,
++          "radius": 0.8549041620446993
++        },
++        {
++          "angle": 1.1559153746194086,
++          "radius": 0.8557882688530837
++        },
++        {
++          "angle": 1.1534484609364781,
++          "radius": 0.8569827424692447
++        },
++        {
++          "angle": 1.1532422899046024,
++          "radius": 0.8583478245588694
++        },
++        {
++          "angle": 1.155593035203342,
++          "radius": 0.8598470545635035
++        },
++        {
++          "angle": 1.1605945358975327,
++          "radius": 0.8614439719246922
++        },
++        {
++          "angle": 1.1680959264980038,
++          "radius": 0.8631021160839812
++        },
++        {
++          "angle": 1.1776900539498645,
++          "radius": 0.8647850264829156
++        },
++        {
++          "angle": 1.1887342491456108,
++          "radius": 0.866456242563041
++        },
++        {
++          "angle": 1.2004010321524785,
++          "radius": 0.8680793037659026
++        },
++        {
++          "angle": 1.2117526335452167,
++          "radius": 0.869617749533046
++        },
++        {
++          "angle": 1.2218302619835029,
++          "radius": 0.8710351193060167
++        },
++        {
++          "angle": 1.2297472025596976,
++          "radius": 0.87229495252636
++        },
++        {
++          "angle": 1.2347743184399445,
++          "radius": 0.8733607886356213
++        },
++        {
++          "angle": 1.2364074140043235,
++          "radius": 0.874196167075346
++        }
++      ],
++      "color": "#66ccff"
++    },
++    {
++      "layerId": "quasarsZ",
++      "points": [
++        {
++          "angle": 0.36795226714845575,
++          "radius": 0.9153592188358715
++        },
++        {
++          "angle": 0.37311044018011447,
++          "radius": 0.9157221112241017
++        },
++        {
++          "angle": 0.3763229131617946,
++          "radius": 0.91616813969213
++        },
++        {
++          "angle": 0.3772038592969717,
++          "radius": 0.9166881235845121
++        },
++        {
++          "angle": 0.3756302416707199,
++          "radius": 0.9172728822458047
++        },
++        {
++          "angle": 0.37175928720659734,
++          "radius": 0.9179132350205633
++        },
++        {
++          "angle": 0.3660127641462631,
++          "radius": 0.9186000012533444
++        },
++        {
++          "angle": 0.35902982572054454,
++          "radius": 0.9193240002887038
++        },
++        {
++          "angle": 0.35159399125624774,
++          "radius": 0.9200760514711976
++        },
++        {
++          "angle": 0.3445429706675174,
++          "radius": 0.9208469741453817
++        },
++        {
++          "angle": 0.33867211709577283,
++          "radius": 0.9216275876558127
++        },
++        {
++          "angle": 0.3346430620708252,
++          "radius": 0.9224087113470463
++        },
++        {
++          "angle": 0.3329084542733845,
++          "radius": 0.9231811645636384
++        },
++        {
++          "angle": 0.33366176414374693,
++          "radius": 0.9239357666501454
++        },
++        {
++          "angle": 0.3368180711677179,
++          "radius": 0.9246633369511232
++        },
++        {
++          "angle": 0.3420279900715035,
++          "radius": 0.9253546948111281
++        },
++        {
++          "angle": 0.3487228748547069,
++          "radius": 0.9260006595747159
++        },
++        {
++          "angle": 0.35618565518662304,
++          "radius": 0.9265920505864427
++        },
++        {
++          "angle": 0.36363856914682624,
++          "radius": 0.9271196871908647
++        },
++        {
++          "angle": 0.37033703567208165,
++          "radius": 0.927574388732538
++        },
++        {
++          "angle": 0.37567118211859396,
++          "radius": 0.9279520161225562
++        },
++        {
++          "angle": 0.3792905654153505,
++          "radius": 0.9282783166829659
++        },
++        {
++          "angle": 0.3810222029817282,
++          "radius": 0.9285611076915374
++        },
++        {
++          "angle": 0.3809390506410617,
++          "radius": 0.9288036847015324
++        },
++        {
++          "angle": 0.3793575606957754,
++          "radius": 0.9290093432662127
++        },
++        {
++          "angle": 0.3767919183009992,
++          "radius": 0.9291813789388403
++        },
++        {
++          "angle": 0.37388370040741103,
++          "radius": 0.9293230872726769
++        },
++        {
++          "angle": 0.3713157798102897,
++          "radius": 0.9294377638209844
++        },
++        {
++          "angle": 0.3697212279131752,
++          "radius": 0.9295287041370245
++        },
++        {
++          "angle": 0.3695985791669844,
++          "radius": 0.9295992037740591
++        },
++        {
++          "angle": 0.37124403340790857,
++          "radius": 0.9296525582853501
++        },
++        {
++          "angle": 0.3747090859181325,
++          "radius": 0.9296920632241592
++        },
++        {
++          "angle": 0.3797889444141213,
++          "radius": 0.9297210141437484
++        },
++        {
++          "angle": 0.38604330055972624,
++          "radius": 0.9297427065973795
++        },
++        {
++          "angle": 0.39284703519353886,
++          "radius": 0.9297604361383139
++        },
++        {
++          "angle": 0.3994647396616639,
++          "radius": 0.9297774983198143
++        },
++        {
++          "angle": 0.40513998339513463,
++          "radius": 0.9297971886951416
++        },
++        {
++          "angle": 0.40918841225766667,
++          "radius": 0.9298228028175582
++        },
++        {
++          "angle": 0.41108325018676023,
++          "radius": 0.9298576362403258
++        },
++        {
++          "angle": 0.41052266233384993,
++          "radius": 0.929904984516706
++        }
++      ],
++      "color": "#ff4444"
++    },
++    {
++      "layerId": "quasarsZ",
++      "points": [
++        {
++          "angle": 0.8323558619731096,
++          "radius": 0.9352717288979776
++        },
++        {
++          "angle": 0.8358082573990168,
++          "radius": 0.9368638933159299
++        },
++        {
++          "angle": 0.837634622846829,
++          "radius": 0.9388262153725362
++        },
++        {
++          "angle": 0.8373556385565966,
++          "radius": 0.9411173761990879
++        },
++        {
++          "angle": 0.8347547746499677,
++          "radius": 0.9436960569268767
++        },
++        {
++          "angle": 0.8298957650870749,
++          "radius": 0.9465209386871942
++        },
++        {
++          "angle": 0.8231068851461514,
++          "radius": 0.9495507026113323
++        },
++        {
++          "angle": 0.814933795094599,
++          "radius": 0.9527440298305824
++        },
++        {
++          "angle": 0.806066521295798,
++          "radius": 0.9560596014762361
++        },
++        {
++          "angle": 0.7972492807004673,
++          "radius": 0.9594560986795853
++        },
++        {
++          "angle": 0.7891839334866009,
++          "radius": 0.9628922025719214
++        },
++        {
++          "angle": 0.7824386182205838,
++          "radius": 0.9663265942845362
++        },
++        {
++          "angle": 0.7773724906197003,
++          "radius": 0.969717954948721
++        },
++        {
++          "angle": 0.7740855281608214,
++          "radius": 0.9730249656957679
++        },
++        {
++          "angle": 0.772399317366326,
++          "radius": 0.9762063076569684
++        },
++        {
++          "angle": 0.7718709799989952,
++          "radius": 0.9792206619636137
++        },
++        {
++          "angle": 0.7718383770950061,
++          "radius": 0.982026709746996
++        },
++        {
++          "angle": 0.7714909453602281,
++          "radius": 0.9845831321384068
++        },
++        {
++          "angle": 0.7699574299108096,
++          "radius": 0.9868486102691376
++        },
++        {
++          "angle": 0.7663997567200904,
++          "radius": 0.9887818252704803
++        },
++        {
++          "angle": 0.7599733580868916,
++          "radius": 0.9903626839943948
++        },
++        {
++          "angle": 0.7495259355938565,
++          "radius": 0.9916989722629665
++        },
++        {
++          "angle": 0.735004650953982,
++          "radius": 0.9928261811988187
++        },
++        {
++          "angle": 0.71675923417605,
++          "radius": 0.9937609929113259
++        },
++        {
++          "angle": 0.6953829117479321,
++          "radius": 0.9945200895098627
++        },
++        {
++          "angle": 0.6716666430102053,
++          "radius": 0.9951201531038038
++        },
++        {
++          "angle": 0.646528779098995,
++          "radius": 0.9955778658025237
++        },
++        {
++          "angle": 0.6209289669950265,
++          "radius": 0.9959099097153972
++        },
++        {
++          "angle": 0.5957770522872878,
++          "radius": 0.9961329669517989
++        },
++        {
++          "angle": 0.5718483436121423,
++          "radius": 0.9962637196211035
++        },
++        {
++          "angle": 0.5497158149912288,
++          "radius": 0.9963188498326851
++        },
++        {
++          "angle": 0.5297077358921793,
++          "radius": 0.9963150396959192
++        },
++        {
++          "angle": 0.5118960882169059,
++          "radius": 0.9962689713201796
++        },
++        {
++          "angle": 0.4961173378147071,
++          "radius": 0.9961973268148415
++        },
++        {
++          "angle": 0.48202313970962163,
++          "radius": 0.9961167882892792
++        },
++        {
++          "angle": 0.46915485943320157,
++          "radius": 0.9960440378528675
++        },
++        {
++          "angle": 0.4570328406019272,
++          "radius": 0.9959957576149809
++        },
++        {
++          "angle": 0.4452495032649614,
++          "radius": 0.9959886296849942
++        },
++        {
++          "angle": 0.4335548455452513,
++          "radius": 0.9960393361722819
++        },
++        {
++          "angle": 0.4219238067796792,
++          "radius": 0.9961645591862187
++        }
++      ],
++      "color": "#ff4444"
++    },
++    {
++      "layerId": "quasarsZ",
++      "points": [
++        {
++          "angle": 0.8330360978358923,
++          "radius": 0.9133601925630401
++        },
++        {
++          "angle": 0.855349638016855,
++          "radius": 0.9153738901473236
++        },
++        {
++          "angle": 0.8812256814498423,
++          "radius": 0.9180265395346995
++        },
++        {
++          "angle": 0.9092776574798362,
++          "radius": 0.9212028767390416
++        },
++        {
++          "angle": 0.9383817853334174,
++          "radius": 0.9247876377742232
++        },
++        {
++          "angle": 0.9676945480756504,
++          "radius": 0.928665558654118
++        },
++        {
++          "angle": 0.9966369700897008,
++          "radius": 0.9327213753925996
++        },
++        {
++          "angle": 1.0248474607479028,
++          "radius": 0.9368398240035415
++        },
++        {
++          "angle": 1.0521087955185682,
++          "radius": 0.9409056405008172
++        },
++        {
++          "angle": 1.078257940457349,
++          "radius": 0.9448035608983001
++        },
++        {
++          "angle": 1.1030895048471705,
++          "radius": 0.9484183212098641
++        },
++        {
++          "angle": 1.1262643763593507,
++          "radius": 0.9516346574493825
++        },
++        {
++          "angle": 1.147234459816106,
++          "radius": 0.9543373056307288
++        },
++        {
++          "angle": 1.165192481799239,
++          "radius": 0.9564110017677768
++        },
++        {
++          "angle": 1.180474145055682,
++          "radius": 0.9578706896561144
++        },
++        {
++          "angle": 1.1941346120100353,
++          "radius": 0.95885440292183
++        },
++        {
++          "angle": 1.2060803794593127,
++          "radius": 0.9594315123245469
++        },
++        {
++          "angle": 1.2160695198702176,
++          "radius": 0.9596713886238889
++        },
++        {
++          "angle": 1.2237994141197344,
++          "radius": 0.9596434025794793
++        },
++        {
++          "angle": 1.2290006239420368,
++          "radius": 0.9594169249509419
++        },
++        {
++          "angle": 1.2315254420352928,
++          "radius": 0.9590613264979001
++        },
++        {
++          "angle": 1.2314203521865588,
++          "radius": 0.9586459779799774
++        },
++        {
++          "angle": 1.2289736396290383,
++          "radius": 0.9582402501567977
++        },
++        {
++          "angle": 1.2247324664323773,
++          "radius": 0.9579135137879843
++        },
++        {
++          "angle": 1.2194874911453104,
++          "radius": 0.9577351396331608
++        },
++        {
++          "angle": 1.2142271051692783,
++          "radius": 0.9577744984519508
++        },
++        {
++          "angle": 1.2100670917012706,
++          "radius": 0.9581009610039777
++        },
++        {
++          "angle": 1.207029145347622,
++          "radius": 0.9586782185558974
++        },
++        {
++          "angle": 1.2047894979977412,
++          "radius": 0.9594049866636765
++        },
++        {
++          "angle": 1.203877398361073,
++          "radius": 0.9602531725209045
++        },
++        {
++          "angle": 1.2046197605323368,
++          "radius": 0.9611946833211715
++        },
++        {
++          "angle": 1.2070987940522446,
++          "radius": 0.962201426258067
++        },
++        {
++          "angle": 1.2111404208957899,
++          "radius": 0.9632453085251808
++        },
++        {
++          "angle": 1.2163350469853518,
++          "radius": 0.9642982373161026
++        },
++        {
++          "angle": 1.2220882674180495,
++          "radius": 0.9653321198244225
++        },
++        {
++          "angle": 1.227695387798516,
++          "radius": 0.9663188632437297
++        },
++        {
++          "angle": 1.2324306918163124,
++          "radius": 0.9672303747676143
++        },
++        {
++          "angle": 1.2356405395936823,
++          "radius": 0.9680385615896661
++        },
++        {
++          "angle": 1.2368288693266531,
++          "radius": 0.9687153309034746
++        },
++        {
++          "angle": 1.2357245604251883,
++          "radius": 0.9692325899026297
++        }
++      ],
++      "color": "#ff4444"
++    }
++  ]
++}
+\ No newline at end of file
+diff --git a/web/i18n.js b/web/i18n.js
+new file mode 100644
+index 0000000..11e2afe
+--- /dev/null
++++ b/web/i18n.js
+@@ -0,0 +1,108 @@
++/* i18n: dicionario EN/PT e aplicacao de traducao. (Task map-redesign) */
++(function (root, factory) {
++  if (typeof module === "object" && module.exports) module.exports = factory();
++  else root.CockpitI18n = factory();
++})(typeof self !== "undefined" ? self : this, function () {
++  "use strict";
++
++  var lang = "pt-PT";
++  var dict = {
++    "pt-PT": {
++      // idioma / menu
++      "lang.en": "EN",
++      "lang.pt": "PT",
++      "menu.map": "Mapa",
++      // mapa (wedge)
++      "map.title": "Mapa Galactico",
++      "map.back": "Voltar",
++      "map.galaxy": "Galaxia",
++      "map.system": "Sistema",
++      "map.nav": "Setas/Tab: navegar | Enter: selecionar | Esc: voltar",
++      "map.launchL0": "Lancar Nivel 0",
++      "map.comingSoon": "Em breve",
++      "map.replay": "Replay",
++      "map.available": "Disponível",
++      "map.locked": "Trancado",
++      "map.completed": "Concluído",
++      "map.layer.spirals": "Galaxias Espirais (z 0.005-0.1)",
++      "map.layer.ellipticals": "Galaxias Elipticas (z 0.1-0.4)",
++      "map.layer.ellipticalsZ": "Elipticas Desviadas (z 0.4-1.0)",
++      "map.layer.quasars": "Quasars (z 1.0-2.5)",
++      "map.layer.quasarsZ": "Quasars Desviados (z 2.5-5.0)",
++      "map.legend.cmb": "CMB (z aprox 1100)",
++      // nos gerados (exemplo Sol + genericos)
++      "map.node.sol": "Sol",
++      "map.node.alphaCentauri": "Alpha Centauri",
++      "map.node.proxima": "Proxima Centauri",
++      "map.node.barnard": "Estrela de Barnard",
++      "map.node.sirius": "Sirius",
++      "map.node.vega": "Vega",
++      "map.node.interface": "Interface",
++      "map.node.desc.sol": "Estrela do sistema solar. Ponto de partida (L0).",
++      "map.node.desc.alphaCentauri": "Sistema estelar triplo mais proximo do Sol.",
++      "map.node.desc.proxima": "Anana vermelha, companheira de Alpha Centauri.",
++      "map.node.desc.barnard": "Anana vermelha a cerca de 6 anos-luz.",
++      "map.node.desc.sirius": "Estrela mais brilhante do ceu noturno.",
++      "map.node.desc.vega": "Estrela brilhante da constelacao da Lira."
++    },
++    "en": {
++      "lang.en": "EN",
++      "lang.pt": "PT",
++      "menu.map": "Map",
++      "map.title": "Galaxy Map",
++      "map.back": "Back",
++      "map.galaxy": "Galaxy",
++      "map.system": "System",
++      "map.nav": "Arrows/Tab: navigate | Enter: select | Esc: back",
++      "map.launchL0": "Launch Level 0",
++      "map.comingSoon": "Coming soon",
++      "map.replay": "Replay",
++      "map.available": "Available",
++      "map.locked": "Locked",
++      "map.completed": "Completed",
++      "map.layer.spirals": "Spiral Galaxies (z 0.005-0.1)",
++      "map.layer.ellipticals": "Elliptical Galaxies (z 0.1-0.4)",
++      "map.layer.ellipticalsZ": "Redshifted Ellipticals (z 0.4-1.0)",
++      "map.layer.quasars": "Quasars (z 1.0-2.5)",
++      "map.layer.quasarsZ": "Redshifted Quasars (z 2.5-5.0)",
++      "map.legend.cmb": "CMB (z approx 1100)",
++      "map.node.sol": "Sol",
++      "map.node.alphaCentauri": "Alpha Centauri",
++      "map.node.proxima": "Proxima Centauri",
++      "map.node.barnard": "Barnard's Star",
++      "map.node.sirius": "Sirius",
++      "map.node.vega": "Vega",
++      "map.node.interface": "Interface",
++      "map.node.desc.sol": "Star of the solar system. Starting point (L0).",
++      "map.node.desc.alphaCentauri": "Nearest triple star system to Sol.",
++      "map.node.desc.proxima": "Red dwarf companion of Alpha Centauri.",
++      "map.node.desc.barnard": "Red dwarf about 6 light-years away.",
++      "map.node.desc.sirius": "Brightest star in the night sky.",
++      "map.node.desc.vega": "Bright star in the constellation Lyra."
++    }
++  };
++
++  function setLang(l) { if (dict[l]) lang = l; }
++  function getLang() { return lang; }
++  function t(k) {
++    var d = dict[lang][k];
++    return d !== undefined ? d : k;
++  }
++  function applyI18n(rootEl) {
++    rootEl = rootEl || document;
++    Array.prototype.forEach.call(rootEl.querySelectorAll("[data-i18n]"), function (el) {
++      var k = el.getAttribute("data-i18n");
++      var v = t(k);
++      if (v) el.textContent = v;
++    });
++    Array.prototype.forEach.call(rootEl.querySelectorAll("[data-i18n-attr]"), function (el) {
++      var raw = el.getAttribute("data-i18n-attr");
++      var parts = raw.split(":");
++      if (parts.length === 2) {
++        var v = t(parts[1]);
++        if (v) el.setAttribute(parts[0], v);
++      }
++    });
++  }
++  return { setLang: setLang, getLang: getLang, t: t, applyI18n: applyI18n, dict: dict };
++});
+diff --git a/web/index.html b/web/index.html
+index ab7a45d..3e93ffb 100644
+--- a/web/index.html
++++ b/web/index.html
+@@ -4,6 +4,7 @@
+   <meta charset="utf-8">
+   <meta name="viewport" content="width=device-width, initial-scale=1">
+   <title>C-Space Cockpit</title>
++  <link rel="stylesheet" href="map-wedge.css">
+   <style>
+     html, body { margin: 0; height: 100%; background: #020605; color: #6dff85; font-family: monospace; }
+     body { display: flex; flex-direction: column; align-items: center; }
+@@ -41,6 +42,11 @@
+         <button type="button" data-ship="2">PESADA</button>
+       </div>
+       <button id="btn-keymap" type="button">TECLAS</button>
++      <div style="margin:.8rem 0;">
++        <button type="button" id="btn-lang-en" data-i18n="lang.en">EN</button>
++        <button type="button" id="btn-lang-pt" data-i18n="lang.pt">PT</button>
++      </div>
++      <button id="btn-map" type="button" data-i18n="menu.map">Mapa</button>
+       <p>Setas ou WASD: pilotar | Z/X: acelerador | Espaço: laser | P: piloto automático | Enter: iniciar</p>
+       <p id="credits" style="font-size:.75rem;opacity:.7;max-width:34rem;text-align:center;">Áudio das comunicações e do motor: gravações da NASA (domínio público). Este jogo não é apoiado nem aprovado pela NASA.</p>
+     </div>
+@@ -62,6 +68,39 @@
+       <h2>PAUSA</h2>
+       <p>Esc: retoma</p>
+     </div>
++    <div id="intro" class="panel" hidden>
++      <h2 id="intro-title" style="margin:0 0 .5rem 0;color:#6dff85;"></h2>
++      <p id="intro-text" style="font-size:.9rem;color:#ddd;margin:0 0 1rem 0;"></p>
++      <button id="intro-start" type="button">Iniciar voo</button>
++      <button id="intro-back" type="button">Voltar ao mapa</button>
++      <p style="font-size:.75rem;color:#9fd6a8;">Parametro: ?skipintro=1</p>
++    </div>
++    <div id="map" class="panel" hidden>
++      <div class="map-wrap">
++        <div class="map-header">
++          <h2 id="map-title" data-i18n="map.title">Mapa Galactico</h2>
++          <button id="map-back" type="button" data-i18n="map.back">Voltar</button>
++          <span id="map-layer-indicator"></span>
++        </div>
++        <canvas id="map-canvas" width="760" height="420"></canvas>
++        <div id="map-sidebar" class="map-sidebar">
++          <div id="map-node-panel" class="map-node-panel">
++            <h3 id="map-node-name"></h3>
++            <p id="map-node-desc"></p>
++            <canvas id="map-node-thumb" width="120" height="72"></canvas>
++            <div id="map-node-status"></div>
++          </div>
++          <div id="map-legend">
++            <div id="map-layer-btns"></div>
++            <div id="map-cmb-label" data-i18n="map.legend.cmb"></div>
++          </div>
++          <div id="map-actions">
++            <button id="map-launch" type="button" data-i18n="map.launchL0" hidden>Lançar Nível 0</button>
++            <button id="map-back-btn" type="button" data-i18n="map.back">Voltar</button>
++          </div>
++        </div>
++      </div>
++    </div>
+   </div>
+   <p id="status" role="status">A carregar WebAssembly...</p>
+   <div id="touch" aria-label="Controlos tácteis">
+@@ -87,6 +126,9 @@
+   <script src="music_director.js"></script>
+   <script src="render_gl.js"></script>
+   <script src="story.js"></script>
++  <script src="i18n.js"></script>
++  <script src="art.js"></script>
++  <script src="map-wedge.js"></script>
+   <script src="cockpit_wasm.js"></script>
+   <script src="cockpit.js"></script>
+ </body>
+diff --git a/web/map-wedge.css b/web/map-wedge.css
+new file mode 100644
+index 0000000..45ee5d4
+--- /dev/null
++++ b/web/map-wedge.css
+@@ -0,0 +1,53 @@
++/* MapWedge: painel lateral e sobreposicoes do mapa wedge (task map-redesign) */
++#map {
++  position: absolute;
++  inset: 0;
++  display: flex;
++  flex-direction: row;
++  align-items: stretch;
++  justify-content: stretch;
++  background: #000;
++  color: #ddd;
++  font-family: monospace;
++  z-index: 40;
++}
++#map[hidden] { display: none; }
++#map canvas#map-canvas {
++  flex: 1 1 0;
++  background: #000;
++  display: block;
++}
++#map-sidebar {
++  width: min(26rem, 40vw);
++  min-width: 18rem;
++  border-left: 1px solid #222;
++  background: rgba(2, 6, 5, 0.92);
++  display: flex;
++  flex-direction: column;
++  padding: 0.6rem;
++  box-sizing: border-box;
++  overflow-y: auto;
++}
++#map-header {
++  display: flex;
++  align-items: center; gap: 0.5rem; margin-bottom: 0.6rem;
++}
++#map-header h2 { font: inherit; font-size: 1rem; margin: 0; color: #6dff85; flex: 1; }
++#map-header button { font: inherit; font-size: 0.8rem; padding: 0.25rem 0.5rem; }
++#map-title { font-size: 0.8rem; color: #aaa; margin-bottom: 0.4rem; }
++#map-layers { display: flex; gap: 0.4rem; flex-wrap: wrap; margin-bottom: 0.6rem; }
++#map-layers button { font: inherit; font-size: 0.75rem; padding: 0.2rem 0.4rem; background: #06120a; border: 1px solid #222; color: #ddd; cursor: pointer; }
++#map-layers button.active { border-color: #6dff85; color: #6dff85; }
++#map-nav { font-size: 0.75rem; color: #888; margin-bottom: 0.6rem; }
++#map-node { margin-top: 0.6rem; padding-top: 0.6rem; border-top: 1px solid #222; }
++#map-node-name { font-size: 1rem; color: #6dff85; margin: 0 0 0.2rem 0; }
++#map-node-desc { font-size: 0.8rem; color: #bbb; margin: 0 0 0.4rem 0; }
++#map-node-thumb { width: 120px; height: 72px; border: 1px solid #333; background: #000; display: block; margin: 0 0 0.4rem 0; }
++#map-node-available { font-size: 0.75rem; color: #6dff85; margin-bottom: 0.4rem; }
++#map-node-locked { font-size: 0.75rem; color: #ffb000; }
++#map-thumbs { display: flex; flex-direction: column; gap: 0.3rem; margin-bottom: 0.6rem; }
++#map-thumbs h3 { font-size: 0.8rem; color: #aaa; margin: 0 0 0.2rem 0; }
++.layer-thumb { display: flex; align-items: center; gap: 0.4rem; padding: 0.2rem; border: 1px solid #222; background: #06120a; cursor: pointer; }
++.layer-thumb canvas { width: 48px; height: 28px; border: 1px solid #444; }
++.layer-thumb span { font-size: 0.75rem; flex: 1; color: #ddd; }
++.layer-thumb.active { border-color: #6dff85; background: #0a1a0e; }
+diff --git a/web/map-wedge.js b/web/map-wedge.js
+new file mode 100644
+index 0000000..9a8266e
+--- /dev/null
++++ b/web/map-wedge.js
+@@ -0,0 +1,514 @@
++/* MapWedge: renderizador wedge 2D (Map of the Universe) para o C-Space Cockpit.
++   Canvas 2D puro, zero dependencias, seed deterministica. Compatavel cockpit.js (IIFE/ES5). */
++(function (root, factory) {
++  if (typeof module === "object" && module.exports) module.exports = factory();
++  else root.MapWedge = factory();
++})(typeof self !== "undefined" ? self : this, function () {
++  "use strict";
++
++  /* ---------- CONSTANTES ---------- */
++  var WEDGE_ANGLE_DEG = 90;
++  var WEDGE_ANGLE_RAD = WEDGE_ANGLE_DEG * Math.PI / 180;
++  var LAYERS = [
++    { id: "spirals", zMin: 0.005, zMax: 0.1, color: "#4da6ff", kind: "spiral", labelKey: "map.layer.spirals" },
++    { id: "ellipticals", zMin: 0.1, zMax: 0.4, color: "#ffd666", kind: "elliptical", labelKey: "map.layer.ellipticals" },
++    { id: "ellipticalsZ", zMin: 0.4, zMax: 1.0, color: "#ff8844", kind: "elliptical", labelKey: "map.layer.ellipticalsZ" },
++    { id: "quasars", zMin: 1.0, zMax: 2.5, color: "#66ccff", kind: "quasar", labelKey: "map.layer.quasars" },
++    { id: "quasarsZ", zMin: 2.5, zMax: 5.0, color: "#ff4444", kind: "quasar", labelKey: "map.layer.quasarsZ" }
++  ];
++  var LAYER_COUNT = LAYERS.length;
++  var CMB_RADIUS_FACTOR = 1.02;
++  var NODE_COUNT_PER_LAYER = [25, 20, 15, 12, 10]; // ~82 nos
++  var FILAMENT_SEGMENTS = 40;
++  var NODE_RADIUS = { spiral: 5, elliptical: 6, quasar: 7 };
++
++  /* ---------- RNG deterministica (mulberry32) ---------- */
++  function mulberry32(seed) {
++    return function () {
++      var t = (seed += 0x6D2B79F5);
++      t = Math.imul(t ^ (t >>> 15), t | 1);
++      t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
++      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
++    };
++  }
++
++  function zToRadius(z, zMin, zMax) {
++    var t = (Math.log(z) - Math.log(zMin)) / (Math.log(zMax) - Math.log(zMin));
++    if (t < 0) t = 0; if (t > 1) t = 1;
++    return t;
++  }
++
++  /* ---------- MapWedge ---------- */
++  var MapWedge = {
++    /* estado */
++    canvas: null, ctx: null, canvasW: 800, canvasH: 600,
++    nodes: [], filaments: [],
++    currentLayer: 0,
++    selectedNodeId: null, hoveredNodeId: null, cursorIndex: -1,
++    route: [],
++    i18n: null, onSelect: null, onBack: null,
++    seed: 12345,
++    LAYER_COUNT: LAYER_COUNT,
++    LAYERS: LAYERS,
++    WEDGE_ANGLE_RAD: WEDGE_ANGLE_RAD,
++    WEDGE_ANGLE_DEG: WEDGE_ANGLE_DEG,
++    FILAMENT_SEGMENTS: FILAMENT_SEGMENTS,
++
++    /* ---------- INIT ---------- */
++    init: function (canvasId, options) {
++      options = options || {};
++      var el = typeof canvasId === "string" ? (typeof document !== "undefined" ? document.getElementById(canvasId) : null) : canvasId;
++      this.canvas = el;
++      this.ctx = el && el.getContext ? el.getContext("2d") : null;
++      this.canvasW = el ? el.width : 800;
++      this.canvasH = el ? el.height : 600;
++      this.i18n = options.i18n || function (k) { return k; };
++      this.onSelect = options.onSelect || function () {};
++      this.onBack = options.onBack || function () {};
++      this.seed = options.seed || 12345;
++      this.generateNodes(this.seed);
++      this.generateFilaments();
++      this.bindEvents();
++      this.resize();
++      this.render();
++      if (typeof window !== "undefined") {
++        window.addEventListener("resize", function () { this.resize(); }.bind(this));
++      }
++      return this;
++    },
++
++    /* ---------- GERACAO PROCEDURAL ---------- */
++    generateNodes: function (seed) {
++      var rng = mulberry32(seed);
++      var nodes = [];
++      var namedL0 = [
++        { id: "sol", nameKey: "map.node.sol" },
++        { id: "alpha-centauri", nameKey: "map.node.alphaCentauri" },
++        { id: "proxima", nameKey: "map.node.proxima" },
++        { id: "barnard", nameKey: "map.node.barnard" },
++        { id: "sirius", nameKey: "map.node.sirius" },
++        { id: "vega", nameKey: "map.node.vega" }
++      ];
++      var globalZMin = 0.005, globalZMax = 5.0;
++      var idSeq = 0;
++      for (var li = 0; li < LAYER_COUNT; li++) {
++        var layer = LAYERS[li];
++        var count = NODE_COUNT_PER_LAYER[li];
++        var numClusters = Math.min(3, count);
++        var clusterBases = [];
++        for (var c = 0; c < numClusters; c++) {
++          clusterBases.push(WEDGE_ANGLE_RAD * (c + 1) / (numClusters + 1));
++        }
++        var clusterSizes = [];
++        var remaining = count;
++        for (var c = 0; c < numClusters; c++) {
++          var s = Math.ceil(remaining / (numClusters - c));
++          clusterSizes.push(s);
++          remaining -= s;
++        }
++        var nodeIdx = 0;
++        for (var c = 0; c < numClusters; c++) {
++          var baseAngle = clusterBases[c];
++          var clusterAngleSpread = WEDGE_ANGLE_RAD * 0.06;
++          for (var s = 0; s < clusterSizes[c]; s++) {
++            var z = layer.zMin + (layer.zMax - layer.zMin) * rng();
++            var radius = zToRadius(z, globalZMin, globalZMax);
++            radius += (rng() - 0.5) * 0.04; // jitter
++            if (radius < 0) radius = 0; if (radius > 1) radius = 1;
++            var angle = baseAngle + (rng() - 0.5) * clusterAngleSpread;
++            if (angle < 0) angle = 0; if (angle > WEDGE_ANGLE_RAD) angle = WEDGE_ANGLE_RAD;
++            var id = "n" + li + "_" + idSeq++;
++            var nameKey = "map.node." + id;
++            var thumb = layer.kind + "-" + ((s % 3) + 1);
++            // primeiros nos da camada 0 usam nomes proprios
++            if (li === 0 && namedL0[nodeIdx]) {
++              id = namedL0[nodeIdx].id;
++              nameKey = namedL0[nodeIdx].nameKey;
++              thumb = "spiral-" + ((nodeIdx % 3) + 1);
++              nodeIdx++;
++            }
++            nodes.push({
++              id: id, nameKey: nameKey, kind: layer.kind, layer: li,
++              angle: angle, radius: radius,
++              edges: [], level: li === 0 ? "L0" : null,
++              state: li === 0 ? "available" : "locked",
++              thumb: thumb
++            });
++          }
++        }
++      }
++      // arestas: 1-3 no mesmo layer (proximidade) + 0-1 no layer seguinte
++      var byLayer = [];
++      for (var li = 0; li < LAYER_COUNT; li++) byLayer.push([]);
++      nodes.forEach(function (n) { byLayer[n.layer].push(n); });
++      for (var li = 0; li < LAYER_COUNT; li++) {
++        var group = byLayer[li];
++        for (var i = 0; i < group.length; i++) {
++          var a = group[i];
++          var dists = [];
++          for (var j = 0; j < group.length; j++) {
++            if (i === j) continue;
++            var b = group[j];
++            var da = a.angle - b.angle, dr = a.radius - b.radius;
++            dists.push({ id: b.id, d: da * da + dr * dr });
++          }
++          dists.sort(function (x, y) { return x.d - y.d; });
++          var maxEdges = Math.min(3, dists.length);
++          var take = 1 + Math.floor(rng() * maxEdges);
++          for (var e = 0; e < take; e++) a.edges.push(dists[e].id);
++          // progressao para o layer seguinte
++          if (li + 1 < LAYER_COUNT && rng() < 0.5) {
++            var next = byLayer[li + 1];
++            if (next.length > 0) a.edges.push(next[Math.floor(rng() * next.length)].id);
++          }
++        }
++      }
++      this.nodes = nodes;
++      return nodes;
++    },
++
++    generateFilaments: function () {
++      var filaments = [];
++      var byLayer = [];
++      for (var li = 0; li < LAYER_COUNT; li++) byLayer.push([]);
++      this.nodes.forEach(function (n) { byLayer[n.layer].push(n); });
++      for (var li = 0; li < LAYER_COUNT; li++) {
++        var group = byLayer[li].slice();
++        group.sort(function (a, b) { return a.angle - b.angle; });
++        var numClusters = Math.min(3, group.length);
++        var clusterSize = Math.max(1, Math.floor(group.length / numClusters));
++        for (var c = 0; c < numClusters; c++) {
++          var start = c * clusterSize;
++          var end = c === numClusters - 1 ? group.length : start + clusterSize;
++          var cluster = group.slice(start, end);
++          if (cluster.length < 2) continue;
++          cluster.sort(function (a, b) { return a.radius - b.radius; });
++          var pts = cluster.map(function (n) { return { angle: n.angle, radius: n.radius }; });
++          var samples = [];
++          for (var s = 0; s < FILAMENT_SEGMENTS; s++) {
++            var t = s / (FILAMENT_SEGMENTS - 1);
++            var p = this.catmullRom(pts, t);
++            // ruido organico deterministico ao longo da curva
++            var noise = Math.sin(t * 13.7 + this.seed * 0.31) * 0.018 +
++                        Math.cos(t * 7.3 + this.seed * 0.17) * 0.012;
++            p.angle += noise;
++            p.radius = Math.max(0, Math.min(1, p.radius));
++            samples.push({ angle: p.angle, radius: p.radius });
++          }
++          filaments.push({ points: samples, layerId: LAYERS[li].id, color: LAYERS[li].color });
++        }
++      }
++      this.filaments = filaments;
++      return filaments;
++    },
++
++    catmullRom: function (pts, t) {
++      if (pts.length === 1) return { angle: pts[0].angle, radius: pts[0].radius };
++      var n = pts.length - 1;
++      var i = Math.min(Math.floor(t * n), n - 1);
++      var local = (t * n) - i;
++      var p0 = pts[Math.max(i - 1, 0)];
++      var p1 = pts[i];
++      var p2 = pts[Math.min(i + 1, n)];
++      var p3 = pts[Math.min(i + 2, n)];
++      return {
++        angle: this.catmullRomCoord(p0.angle, p1.angle, p2.angle, p3.angle, local),
++        radius: this.catmullRomCoord(p0.radius, p1.radius, p2.radius, p3.radius, local)
++      };
++    },
++    catmullRomCoord: function (p0, p1, p2, p3, t) {
++      var t2 = t * t, t3 = t2 * t;
++      return 0.5 * ((2 * p1) + (-p0 + p2) * t + (2 * p0 - 5 * p1 + 4 * p2 - p3) * t2 +
++                    (-p0 + 3 * p1 - 3 * p2 + p3) * t3);
++    },
++
++    /* ---------- COORDENADAS ---------- */
++    toCanvas: function (angle, radius) {
++      var cx = this.canvasW / 2;
++      var cy = this.canvasH;
++      var maxR = Math.min(cx, cy) * 0.95;
++      var a = angle - WEDGE_ANGLE_RAD / 2;
++      var x = cx + Math.sin(a) * radius * maxR;
++      var y = cy - Math.cos(a) * radius * maxR;
++      return { x: x, y: y };
++    },
++    angleRadiusAt: function (clientX, clientY) {
++      var rect = this.canvas ? this.canvas.getBoundingClientRect() : { left: 0, top: 0 };
++      var x = clientX - rect.left, y = clientY - rect.top;
++      var cx = this.canvasW / 2, cy = this.canvasH;
++      var maxR = Math.min(cx, cy) * 0.95;
++      var dx = x - cx, dy = cy - y;
++      var radius = Math.hypot(dx, dy) / maxR;
++      if (radius < 0) radius = 0; if (radius > 1) radius = 1;
++      var angle = WEDGE_ANGLE_RAD / 2 + Math.atan2(dx, dy);
++      if (angle < 0) angle = 0; if (angle > WEDGE_ANGLE_RAD) angle = WEDGE_ANGLE_RAD;
++      return { angle: angle, radius: radius };
++    },
++
++    /* ---------- ESTADO / CONSULTAS ---------- */
++    getLayer: function () { return this.currentLayer; },
++    setLayer: function (layerIndex) {
++      if (layerIndex < 0) layerIndex = 0;
++      if (layerIndex >= LAYER_COUNT) layerIndex = LAYER_COUNT - 1;
++      this.currentLayer = layerIndex;
++      this.selectedNodeId = null;
++      this.hoveredNodeId = null;
++      this.cursorIndex = -1;
++      this.render();
++    },
++    nodeOf: function (id) {
++      for (var i = 0; i < this.nodes.length; i++) if (this.nodes[i].id === id) return this.nodes[i];
++      return null;
++    },
++    nodesOfLayer: function (li) {
++      var out = [];
++      for (var i = 0; i < this.nodes.length; i++) if (this.nodes[i].layer === li) out.push(this.nodes[i]);
++      return out;
++    },
++    isAvailable: function (nodeId) { var n = this.nodeOf(nodeId); return n ? n.state === "available" : false; },
++    isLocked: function (nodeId) { var n = this.nodeOf(nodeId); return n ? n.state === "locked" : false; },
++    isCompleted: function (nodeId) { var n = this.nodeOf(nodeId); return n ? n.state === "completed" : false; },
++    levelOf: function (nodeId) { var n = this.nodeOf(nodeId); return n ? n.level : null },
++    selected: function () { return this.selectedNodeId; },
++
++    selectNode: function (nodeId) {
++      var n = this.nodeOf(nodeId);
++      if (!n) return false;
++      this.selectedNodeId = nodeId;
++      this.hoveredNodeId = nodeId;
++      // cursor = indice no array nodes[]
++      for (var i = 0; i < this.nodes.length; i++) if (this.nodes[i].id === nodeId) { this.cursorIndex = i; break; }
++      this.render();
++      if (this.isAvailable(nodeId)) this.onSelect(nodeId);
++      return true;
++    },
++    focusNode: function (nodeId) {
++      var n = this.nodeOf(nodeId);
++      if (!n) return false;
++      this.selectedNodeId = nodeId;
++      this.hoveredNodeId = nodeId;
++      for (var i = 0; i < this.nodes.length; i++) if (this.nodes[i].id === nodeId) { this.cursorIndex = i; break; }
++      this.render();
++      return true;
++    },
++
++    /* ---------- EVENTOS ---------- */
++    bindEvents: function () {
++      var self = this;
++      if (!this.canvas) return;
++      this.canvas.addEventListener("mousemove", function (e) {
++        var p = self.angleRadiusAt(e.clientX, e.clientY);
++        var hit = self.findNodeAt(p.x, p.y);
++        self.hoveredNodeId = hit ? hit.id : null;
++        self.selectedNodeId = null;
++        self.cursorIndex = -1;
++        self.render();
++      });
++      this.canvas.addEventListener("click", function (e) {
++        var p = self.angleRadiusAt(e.clientX, e.clientY);
++        var hit = self.findNodeAt(p.x, p.y);
++        if (hit) self.selectNode(hit.id);
++      });
++    },
++    findNodeAt: function (angle, radius) {
++      var best = null, bestD = 1e9;
++      var pt = this.toCanvas(angle, radius);
++      for (var i = 0; i < this.nodes.length; i++) {
++        var n = this.nodes[i];
++        if (n.layer !== this.currentLayer) continue;
++        var c = this.toCanvas(n.angle, n.radius);
++        var d = Math.hypot(c.x - pt.x, c.y - pt.y);
++        if (d < bestD) { bestD = d; best = n; }
++      }
++      return bestD < 24 ? best : null;
++    },
++
++    /* ---------- RENDER ---------- */
++    render: function () {
++      var ctx = this.ctx;
++      if (!ctx) return;
++      var w = this.canvasW, h = this.canvasH;
++      ctx.clearRect(0, 0, w, h);
++      ctx.fillStyle = "#000"; ctx.fillRect(0, 0, w, h);
++
++      var layer = LAYERS[this.currentLayer];
++      var cx = w / 2, cy = h;
++      var maxR = Math.min(cx, cy) * 0.95;
++
++      // arco CMB no topo
++      ctx.beginPath();
++      ctx.strokeStyle = "#111"; ctx.lineWidth = 1;
++      ctx.arc(cx, cy, maxR * CMB_RADIUS_FACTOR, Math.PI, 0, false);
++      ctx.stroke();
++
++      // filamentos da camada atual
++      for (var f = 0; f < this.filaments.length; f++) {
++        var fil = this.filaments[f];
++        if (fil.layerId !== layer.id) continue;
++        ctx.beginPath();
++        ctx.strokeStyle = fil.color; ctx.lineWidth = 1.5; ctx.globalAlpha = 0.55;
++        var first = true;
++        for (var s = 0; s < fil.points.length; s++) {
++          var c = this.toCanvas(fil.points[s].angle, fil.points[s].radius);
++          if (first) { ctx.moveTo(c.x, c.y); first = false; }
++          else ctx.lineTo(c.x, c.y);
++        }
++        ctx.stroke();
++      }
++      ctx.globalAlpha = 1;
++
++      // nos da camada atual
++      for (var i = 0; i < this.nodes.length; i++) {
++        var n = this.nodes[i];
++        if (n.layer !== this.currentLayer) continue;
++        var c = this.toCanvas(n.angle, n.radius);
++        var r = NODE_RADIUS[n.kind] || 5;
++        var selected = (this.selectedNodeId === n.id || this.hoveredNodeId === n.id);
++        ctx.beginPath();
++        ctx.fillStyle = layer.color;
++        ctx.arc(c.x, c.y, r, 0, 2 * Math.PI);
++        ctx.fill();
++        if (selected) {
++          ctx.strokeStyle = "#fff"; ctx.lineWidth = 2;
++          ctx.stroke();
++        } else if (n.state === "locked") {
++          ctx.strokeStyle = "#ffb000"; ctx.lineWidth = 1.5;
++          ctx.stroke();
++        }
++        // nome
++        ctx.fillStyle = "#ddd";
++        ctx.font = "10px monospace";
++        ctx.textAlign = "center";
++        ctx.shadowColor = "#000"; ctx.shadowBlur = 3;
++        var label = n.state === "locked" ? this.i18n("map.comingSoon") : this.i18n(n.nameKey);
++        ctx.fillText(label, c.x, c.y + r + 12);
++        if (n.state === "locked") {
++          ctx.fillStyle = "#ffb000";
++          ctx.fillText("￿", c.x, c.y - r - 8); // cadeado (fallback)
++        }
++        ctx.shadowBlur = 0;
++      }
++
++      // rota (linha magenta)
++      if (this.route.length >= 2) {
++        ctx.beginPath();
++        ctx.strokeStyle = "#ff00ff"; ctx.lineWidth = 3; ctx.globalAlpha = 0.9;
++        var first = true;
++        for (var r = 0; r < this.route.length; r++) {
++          var node = this.nodeOf(this.route[r]);
++          if (!node) continue;
++          var c = this.toCanvas(node.angle, node.radius);
++          if (first) { ctx.moveTo(c.x, c.y); first = false; }
++          else ctx.lineTo(c.x, c.y);
++        }
++        ctx.stroke();
++        ctx.globalAlpha = 1;
++      }
++
++      // legenda de camadas (canto inferior esquerdo)
++      var lx = 14, ly = h - 10;
++      for (var li = 0; li < LAYER_COUNT; li++) {
++        var ly2 = ly - (LAYER_COUNT - 1 - li) * 16;
++        ctx.fillStyle = LAYERS[li].color;
++        ctx.beginPath(); ctx.arc(lx + 6, ly2, 5, 0, 2 * Math.PI); ctx.fill();
++        ctx.fillStyle = "#aaa";
++        ctx.font = "11px monospace";
++        ctx.textAlign = "left";
++        ctx.fillText(this.i18n(LAYERS[li].labelKey), lx + 14, ly2 + 4);
++      }
++      ctx.fillStyle = "#666";
++      ctx.fillText(this.i18n("map.legend.cmb"), lx + 14, ly - LAYER_COUNT * 16 - 4);
++    },
++
++    resize: function () {
++      if (!this.canvas) return;
++      var r = this.canvas.getBoundingClientRect ? this.canvas.getBoundingClientRect() : null;
++      if (r) {
++        this.canvasW = Math.floor(r.width) || 800;
++        this.canvasH = Math.floor(r.height) || 600;
++      }
++      this.canvas.width = this.canvasW;
++      this.canvas.height = this.canvasH;
++      this.render();
++    },
++
++    /* ---------- ROTAS ---------- */
++    setRoute: function (nodeIds) {
++      this.route = nodeIds || [];
++      this.render();
++    },
++
++    /* ---------- TECLADO ---------- */
++    keydown: function (e) {
++      var code = e.code || e.key || "";
++      var layerNodes = this.nodesOfLayer(this.currentLayer);
++      // Tab / Shift+Tab sobre ordem de nodes[]
++      if (code === "Tab" && e.shiftKey) {
++        e.preventDefault();
++        var all2 = this.nodes;
++        if (this.cursorIndex < 0) this.cursorIndex = all2.length - 1;
++        else this.cursorIndex = (this.cursorIndex - 1 + all2.length) % all2.length;
++        this.focusNode(all2[this.cursorIndex].id);
++        return true;
++      }
++      if (code === "Tab") {
++        e.preventDefault();
++        var all = this.nodes;
++        if (this.cursorIndex < 0) this.cursorIndex = 0;
++        else this.cursorIndex = (this.cursorIndex + 1) % all.length;
++        this.focusNode(all[this.cursorIndex].id);
++        return true;
++      }
++      if (code === "Enter" || code === "Space" || code === "NumpadEnter") {
++        e.preventDefault();
++        var target = this.selectedNodeId || this.hoveredNodeId || (layerNodes.length ? layerNodes[0].id : null);
++        if (target) {
++          if (this.isAvailable(target)) { this.selectNode(target); return "select"; }
++          return true; // locked: nothing
++        }
++        return false;
++      }
++      if (code === "Escape") {
++        e.preventDefault();
++        this.onBack();
++        return "back";
++      }
++      // setas: vizinho mais próximo na direção (mesmo layer)
++      if (code === "ArrowUp" || code === "ArrowDown" || code === "ArrowLeft" || code === "ArrowRight") {
++        e.preventDefault();
++        var cur = this.selectedNodeId || this.hoveredNodeId;
++        if (!cur && layerNodes.length) { this.focusNode(layerNodes[0].id); return true; }
++        if (!cur) return false;
++        var cn = this.nodeOf(cur);
++        if (!cn || cn.layer !== this.currentLayer) return false;
++        var dir;
++        if (code === "ArrowLeft") dir = { x: -1, y: 0 };
++        else if (code === "ArrowRight") dir = { x: 1, y: 0 };
++        else if (code === "ArrowUp") dir = { x: 0, y: -1 };
++        else dir = { x: 0, y: 1 };
++        var cp = this.toCanvas(cn.angle, cn.radius);
++        var best = null, bestScore = -1e9;
++        for (var i = 0; i < layerNodes.length; i++) {
++          var n = layerNodes[i];
++          if (n.id === cn.id) continue;
++          var np = this.toCanvas(n.angle, n.radius);
++          var dx = np.x - cp.x, dy = np.y - cp.y;
++          var dist = Math.hypot(dx, dy);
++          if (dist < 0.01) continue;
++          var nx = dx / dist, ny = dy / dist;
++          var score = nx * dir.x + ny * dir.y;
++          if (score > bestScore) { bestScore = score; best = n; }
++        }
++        if (best) this.focusNode(best.id);
++        else {
++          // wrap ao primeiro da lista
++          if (layerNodes.length) this.focusNode(layerNodes[0].id);
++        }
++        return true;
++      }
++      return false;
++    }
++  };
++
++  return MapWedge;
++});
+diff --git a/web/test_i18n.js b/web/test_i18n.js
+new file mode 100644
+index 0000000..8e1d78e
+--- /dev/null
++++ b/web/test_i18n.js
+@@ -0,0 +1,67 @@
++/* Testes de i18n: todas as chaves map.* existem em EN e PT (task map-redesign). */
++"use strict";
++const assert = require("assert");
++const I18n = require("./i18n.js");
++
++const i18n = I18n;
++let failures = 0;
++function check(name, fn) {
++  try { fn(); console.log("OK " + name); }
++  catch (e) { failures++; console.log("FALHOU " + name + ": " + e.message); }
++}
++
++(function () {
++  const pt = i18n.dict["pt-PT"];
++  const en = i18n.dict["en"];
++  assert(pt, "locale pt-PT");
++  assert(en, "locale en");
++
++  // chaves esperadas do mapa
++  const expected = [
++    "map.title", "map.back", "map.galaxy", "map.system", "map.nav",
++    "map.launchL0", "map.comingSoon", "map.replay",
++    "map.layer.spirals", "map.layer.ellipticals", "map.layer.ellipticalsZ",
++    "map.layer.quasars", "map.layer.quasarsZ",
++    "map.legend.cmb",
++    "map.node.sol", "map.node.alphaCentauri", "map.node.proxima",
++    "map.node.barnard", "map.node.sirius", "map.node.vega",
++    "map.node.desc.sol", "map.node.desc.alphaCentauri", "map.node.desc.proxima",
++    "map.node.desc.barnard", "map.node.desc.sirius", "map.node.desc.vega"
++  ];
++
++  check("todas as chaves map.* existem em pt-PT", function () {
++    for (const k of expected) assert(pt[k] !== undefined, "falta pt " + k);
++  });
++  check("todas as chaves map.* existem em en", function () {
++    for (const k of expected) assert(en[k] !== undefined, "falta en " + k);
++  });
++  check("nenhuma chave map.* fica vazia em qualquer locale", function () {
++    for (const k of expected) {
++      assert(pt[k] && pt[k].trim().length > 0, "vazio pt " + k);
++      assert(en[k] && en[k].trim().length > 0, "vazio en " + k);
++    }
++  });
++  check("t() devolve a chave quando nao ha traducao (fallback)", function () {
++    assert.strictEqual(i18n.t("map.node.naoexiste"), "map.node.naoexiste");
++  });
++  check("t() traduz pt-PT e en", function () {
++    i18n.setLang("pt-PT");
++    assert.strictEqual(i18n.t("map.title"), "Mapa Galactico");
++    assert.strictEqual(i18n.t("map.layer.spirals"), "Galaxias Espirais (z 0.005-0.1)");
++    i18n.setLang("en");
++    assert.strictEqual(i18n.t("map.title"), "Galaxy Map");
++    assert.strictEqual(i18n.t("map.layer.spirals"), "Spiral Galaxies (z 0.005-0.1)");
++  });
++  // todas as chaves map.* sao simetricas entre locales
++  const allKeys = new Set([...Object.keys(pt), ...Object.keys(en)]);
++  const mapKeys = [...allKeys].filter(k => k.indexOf("map.") === 0);
++  check("todas as " + mapKeys.length + " chaves map.* sao simetricas pt-PT <-> en", function () {
++    for (const k of mapKeys) {
++      assert(pt[k] !== undefined, "pt falta " + k);
++      assert(en[k] !== undefined, "en falta " + k);
++    }
++  });
++})();
++
++console.log(failures === 0 ? "\ni18n tests ok" : "\ni18n tests FALHARAM (" + failures + ")");
++process.exit(failures === 0 ? 0 : 1);
+diff --git a/web/test_map_wedge.js b/web/test_map_wedge.js
+new file mode 100644
+index 0000000..229d398
+--- /dev/null
++++ b/web/test_map_wedge.js
+@@ -0,0 +1,256 @@
++/* Testes do renderizador MapWedge (task map-redesign).
++   Executa em Node sem DOM: usa um canvas stub e um contexto fake. */
++"use strict";
++const fs = require("fs");
++const assert = require("assert");
++const path = require("path");
++const MapWedge = require("./map-wedge.js");
++
++/* canvas stub: aceita width/height e um contexto minimo para render(). */
++function stubCanvas(w, h) {
++  const calls = [];
++  const ctx = {
++    save: function () { calls.push("save"); },
++    restore: function () { calls.push("restore"); },
++    clearRect: function () { calls.push("clearRect"); },
++    fillRect: function () { calls.push("fillRect"); },
++    beginPath: function () { calls.push("beginPath"); },
++    arc: function () { calls.push("arc"); },
++    stroke: function () { calls.push("stroke"); },
++    fill: function () { calls.push("fill"); },
++    moveTo: function () { calls.push("moveTo"); },
++    lineTo: function () { calls.push("lineTo"); },
++    fillText: function () { calls.push("fillText"); },
++    setTransform: function () {},
++    getTransform: function () { return {}; },
++    globalAlpha: 1,
++    strokeStyle: null, fillStyle: null, lineWidth: null,
++    font: null, textAlign: null, shadowColor: null, shadowBlur: null,
++    measureText: function () { return { width: 0 }; }
++  };
++  Object.defineProperty(ctx, "canvas", { value: { width: w, height: h, getBoundingClientRect: function () { return { left: 0, top: 0, width: w, height: h }; } } });
++  return { canvas: { width: w, height: h, getBoundingClientRect: function () { return { left: 0, top: 0, width: w, height: h }; }, addEventListener: function () {}, removeEventListener: function () {} }, ctx: ctx, calls: calls };
++}
++
++let failures = 0;
++function check(name, fn) {
++  try { fn(); console.log("OK " + name); }
++  catch (e) { failures++; console.log("FALHOU " + name + ": " + e.message); }
++}
++
++/* ---------- geometria ---------- */
++(function () {
++  const W = 800, H = 600;
++  const stub = stubCanvas(W, H);
++  MapWedge.init(stub.canvas, { i18n: function (k) { return k; }, seed: 12345 });
++  MapWedge.canvasW = W; MapWedge.canvasH = H;
++
++  check("toCanvas(0,0) e centro-base", function () {
++    const c = MapWedge.toCanvas(0, 0);
++    assert.strictEqual(c.x, W / 2);
++    assert.strictEqual(c.y, H);
++  });
++  check("toCanvas(angulo max, raio 1) e canto superior direito", function () {
++    const ANG = MapWedge.WEDGE_ANGLE_RAD;
++    const c = MapWedge.toCanvas(ANG, 1);
++    const cx = W / 2, cy = H, maxR = Math.min(cx, cy) * 0.95;
++    const ex = cx + Math.sin(ANG / 2) * maxR; // angulo 90 -> a=+45 deg
++    const ey = cy - Math.cos(ANG / 2) * maxR;
++    assert(Math.abs(c.x - ex) < 1, "x " + c.x + " esperado " + ex);
++    assert(Math.abs(c.y - ey) < 1, "y " + c.y + " esperado " + ey);
++  });
++  check("angleRadiusAt inverte toCanvas", function () {
++    const c = MapWedge.toCanvas(0.4, 0.3);
++    const back = MapWedge.angleRadiusAt(c.x, c.y);
++    assert(Math.abs(back.angle - 0.4) < 0.05, "angle " + back.angle);
++    assert(Math.abs(back.radius - 0.3) < 0.05, "radius " + back.radius);
++  });
++  check("angleRadiusAt clampa ao wedge", function () {
++    const back = MapWedge.angleRadiusAt(-1000, -1000);
++    assert(back.angle >= 0 && back.angle <= (90 * Math.PI / 180));
++    assert(back.radius >= 0 && back.radius <= 1);
++  });
++})();
++
++/* ---------- geracao de nos ---------- */
++(function () {
++  check("mesmo seed -> mesmos angulos/raios/arestas", function () {
++    const a = MapWedge.generateNodes(12345);
++    const b = MapWedge.generateNodes(12345);
++    assert.strictEqual(a.length, b.length);
++    for (let i = 0; i < a.length; i++) {
++      assert.strictEqual(a[i].angle, b[i].angle);
++      assert.strictEqual(a[i].radius, b[i].radius);
++      assert.deepStrictEqual(a[i].edges, b[i].edges);
++    }
++  });
++  check("seed diferente -> distribuicao diferente", function () {
++    const a = MapWedge.generateNodes(12345);
++    const b = MapWedge.generateNodes(999);
++    let diff = 0;
++    for (let i = 0; i < a.length; i++) if (a[i].angle !== b[i].angle) diff++;
++    assert(diff > 0);
++  });
++  check("contagem por camada: 25,20,15,12,10", function () {
++    const nodes = MapWedge.generateNodes(12345);
++    const counts = [0, 0, 0, 0, 0];
++    for (let i = 0; i < nodes.length; i++) counts[nodes[i].layer]++;
++    assert.deepStrictEqual(counts, [25, 20, 15, 12, 10]);
++  });
++  check("todos os estados validos; camada 0 disponivel, resto trancado", function () {
++    const nodes = MapWedge.generateNodes(12345);
++    const valid = new Set(["available", "locked", "completed"]);
++    for (let i = 0; i < nodes.length; i++) {
++      assert(valid.has(nodes[i].state), "estado " + nodes[i].state);
++      if (nodes[i].layer === 0) assert.strictEqual(nodes[i].state, "available");
++      else assert.strictEqual(nodes[i].state, "locked");
++    }
++  });
++  check("arestas referenciam nos existentes e niveis", function () {
++    const nodes = MapWedge.generateNodes(12345);
++    const ids = new Set(nodes.map(n => n.id));
++    for (let i = 0; i < nodes.length; i++) {
++      for (let e = 0; e < nodes[i].edges.length; e++) assert(ids.has(nodes[i].edges[e]), "aresta invalida " + nodes[i].edges[e]);
++      assert(["L0", null].indexOf(nodes[i].level) >= 0);
++    }
++  });
++  check("Sol existe, camada 0, disponivel, primeiro", function () {
++    const nodes = MapWedge.generateNodes(12345);
++    const sol = nodes.find(n => n.id === "sol");
++    assert(sol, "sol nao encontrado");
++    assert.strictEqual(sol.layer, 0);
++    assert.strictEqual(sol.state, "available");
++    assert.strictEqual(nodes[0].id, "sol");
++  });
++})();
++
++/* ---------- filamentos ---------- */
++(function () {
++  check("filamentos existem para cada camada", function () {
++    MapWedge.generateNodes(12345);
++    MapWedge.generateFilaments();
++    const ids = new Set(MapWedge.filaments.map(f => f.layerId));
++    for (let i = 0; i < MapWedge.LAYER_COUNT; i++) assert(ids.has(MapWedge.LAYERS[i].id), "faltou camada " + MapWedge.LAYERS[i].id);
++  });
++  check("cada filamento tem FILAMENT_SEGMENTS pontos", function () {
++    const FS = MapWedge.FILAMENT_SEGMENTS;
++    for (let i = 0; i < MapWedge.filaments.length; i++) {
++      assert.strictEqual(MapWedge.filaments[i].points.length, FS, "filamento " + i);
++    }
++  });
++  check("pontos de filamento dentro do wedge", function () {
++    for (let i = 0; i < MapWedge.filaments.length; i++) {
++      for (let p of MapWedge.filaments[i].points) {
++        assert(p.angle >= 0 && p.angle <= (90 * Math.PI / 180));
++        assert(p.radius >= 0 && p.radius <= 1);
++      }
++    }
++  });
++  check("cores de filamento coincidem com as camadas", function () {
++    const byLayer = {};
++    for (let f of MapWedge.filaments) byLayer[f.layerId] = f.color;
++    for (let i = 0; i < MapWedge.LAYERS.length; i++) assert.strictEqual(byLayer[MapWedge.LAYERS[i].id], MapWedge.LAYERS[i].color);
++  });
++})();
++
++/* ---------- navegacao por teclado ---------- */
++(function () {
++  MapWedge.generateNodes(12345);
++  const L0 = MapWedge.nodesOfLayer(0);
++
++  check("setas movem para vizinho na direcao (mesma camada)", function () {
++    const sol = MapWedge.nodeOf("sol");
++    assert(sol);
++    const before = MapWedge.selectedNodeId;
++    const e = { code: "ArrowRight", key: "ArrowRight", preventDefault: function () {} };
++    const ret = MapWedge.keydown(e);
++    assert.strictEqual(ret, true);
++    assert(MapWedge.selectedNodeId !== null);
++    assert.strictEqual(MapWedge.nodeOf(MapWedge.selectedNodeId).layer, 0);
++  });
++  check("Tab/Shift+Tab ordem de nodes[] com wrap", function () {
++    MapWedge.selectNode("sol");
++    const base = MapWedge.cursorIndex; // sol e o primeiro no (indice 0)
++    const e1 = { code: "Tab", key: "Tab", shiftKey: false, preventDefault: function () {} };
++    MapWedge.keydown(e1);
++    const afterTab = MapWedge.cursorIndex;
++    assert(afterTab === (base + 1) % MapWedge.nodes.length, "Tab avança");
++    const e2 = { code: "Tab", key: "Tab", shiftKey: true, preventDefault: function () {} };
++    MapWedge.keydown(e2);
++    assert.strictEqual(MapWedge.cursorIndex, base, "Shift+Tab desfaz Tab");
++  });
++  check("Enter em no disponivel retorna select", function () {
++    MapWedge.selectNode("sol");
++    const e = { code: "Enter", key: "Enter", preventDefault: function () {} };
++    assert.strictEqual(MapWedge.keydown(e), "select");
++  });
++  check("Enter em no trancado nao seleciona", function () {
++    const locked = MapWedge.nodesOfLayer(1)[0];
++    MapWedge.selectNode(locked.id);
++    const e = { code: "Enter", key: "Enter", preventDefault: function () {} };
++    const ret = MapWedge.keydown(e);
++    assert.strictEqual(ret, true, "trancado nao retorna select");
++    assert.strictEqual(MapWedge.selectedNodeId, locked.id);
++  });
++  check("Escape retorna back", function () {
++    const e = { code: "Escape", key: "Escape", preventDefault: function () {} };
++    assert.strictEqual(MapWedge.keydown(e), "back");
++  });
++})();
++
++/* ---------- camadas ---------- */
++(function () {
++  MapWedge.generateNodes(12345);
++  const stub = stubCanvas(800, 600);
++  MapWedge.canvas = stub.canvas; MapWedge.ctx = stub.ctx; MapWedge.canvasW = 800; MapWedge.canvasH = 600;
++  for (let li = 0; li < 5; li++) {
++    check("setLayer(" + li + ") muda currentLayer", (function (li) {
++      return function () { MapWedge.setLayer(li); assert.strictEqual(MapWedge.getLayer(), li); };
++    })(li));
++  }
++  check("render() nao rebenta sem DOM", function () {
++    MapWedge.render();
++    assert.strictEqual(stub.calls.length > 0, true);
++  });
++})();
++
++/* ---------- roteamento ---------- */
++(function () {
++  MapWedge.generateNodes(12345);
++  const stub = stubCanvas(800, 600);
++  MapWedge.canvas = stub.canvas; MapWedge.ctx = stub.ctx; MapWedge.canvasW = 800; MapWedge.canvasH = 600;
++  const l0 = MapWedge.nodesOfLayer(0).map(n => n.id).slice(0, 4);
++  MapWedge.setRoute(l0);
++  MapWedge.render();
++  check("setRoute guarda lista de ids", function () {
++    assert.deepStrictEqual(MapWedge.route, l0);
++  });
++  check("setRoute([]) limpa", function () {
++    MapWedge.setRoute([]);
++    assert.deepStrictEqual(MapWedge.route, []);
++  });
++})();
++
++/* ---------- serializacao (JSON do disco bate com geracao) ---------- */
++(function () {
++  const data = JSON.parse(fs.readFileSync(path.join(__dirname, "data", "nodes-wedge.json"), "utf8"));
++  check("nodes-wedge.json tem versao, seed, layers, nodes, filaments", function () {
++    assert.strictEqual(data.version, 2);
++    assert.strictEqual(data.seed, 12345);
++    assert(Array.isArray(data.layers) && data.layers.length === 5);
++    assert(Array.isArray(data.nodes) && data.nodes.length === 82);
++    assert(Array.isArray(data.filaments) && data.filaments.length === 15);
++  });
++  check("JSON bate com generateNodes(12345)", function () {
++    const gen = MapWedge.generateNodes(12345);
++    assert.strictEqual(gen.length, data.nodes.length);
++    for (let i = 0; i < gen.length; i++) {
++      assert.strictEqual(gen[i].id, data.nodes[i].id);
++      assert.strictEqual(gen[i].angle, data.nodes[i].angle);
++      assert.strictEqual(gen[i].radius, data.nodes[i].radius);
++    }
++  });
++})();
++
++console.log(failures === 0 ? "\nmap wedge tests ok" : "\nmap wedge tests FALHARAM (" + failures + ")");
++process.exit(failures === 0 ? 0 : 1);

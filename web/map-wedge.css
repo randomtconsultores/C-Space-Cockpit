@@ -1,0 +1,53 @@
+/* MapWedge: painel lateral e sobreposicoes do mapa wedge (task map-redesign) */
+#map {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  justify-content: stretch;
+  background: #000;
+  color: #ddd;
+  font-family: monospace;
+  z-index: 40;
+}
+#map[hidden] { display: none; }
+#map canvas#map-canvas {
+  flex: 1 1 0;
+  background: #000;
+  display: block;
+}
+#map-sidebar {
+  width: min(26rem, 40vw);
+  min-width: 18rem;
+  border-left: 1px solid #222;
+  background: rgba(2, 6, 5, 0.92);
+  display: flex;
+  flex-direction: column;
+  padding: 0.6rem;
+  box-sizing: border-box;
+  overflow-y: auto;
+}
+#map-header {
+  display: flex;
+  align-items: center; gap: 0.5rem; margin-bottom: 0.6rem;
+}
+#map-header h2 { font: inherit; font-size: 1rem; margin: 0; color: #6dff85; flex: 1; }
+#map-header button { font: inherit; font-size: 0.8rem; padding: 0.25rem 0.5rem; }
+#map-title { font-size: 0.8rem; color: #aaa; margin-bottom: 0.4rem; }
+#map-layers { display: flex; gap: 0.4rem; flex-wrap: wrap; margin-bottom: 0.6rem; }
+#map-layers button { font: inherit; font-size: 0.75rem; padding: 0.2rem 0.4rem; background: #06120a; border: 1px solid #222; color: #ddd; cursor: pointer; }
+#map-layers button.active { border-color: #6dff85; color: #6dff85; }
+#map-nav { font-size: 0.75rem; color: #888; margin-bottom: 0.6rem; }
+#map-node { margin-top: 0.6rem; padding-top: 0.6rem; border-top: 1px solid #222; }
+#map-node-name { font-size: 1rem; color: #6dff85; margin: 0 0 0.2rem 0; }
+#map-node-desc { font-size: 0.8rem; color: #bbb; margin: 0 0 0.4rem 0; }
+#map-node-thumb { width: 120px; height: 72px; border: 1px solid #333; background: #000; display: block; margin: 0 0 0.4rem 0; }
+#map-node-available { font-size: 0.75rem; color: #6dff85; margin-bottom: 0.4rem; }
+#map-node-locked { font-size: 0.75rem; color: #ffb000; }
+#map-thumbs { display: flex; flex-direction: column; gap: 0.3rem; margin-bottom: 0.6rem; }
+#map-thumbs h3 { font-size: 0.8rem; color: #aaa; margin: 0 0 0.2rem 0; }
+.layer-thumb { display: flex; align-items: center; gap: 0.4rem; padding: 0.2rem; border: 1px solid #222; background: #06120a; cursor: pointer; }
+.layer-thumb canvas { width: 48px; height: 28px; border: 1px solid #444; }
+.layer-thumb span { font-size: 0.75rem; flex: 1; color: #ddd; }
+.layer-thumb.active { border-color: #6dff85; background: #0a1a0e; }
